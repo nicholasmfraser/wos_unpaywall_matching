@@ -40,13 +40,13 @@ of family name
 
 ```{r}
 # Create table
-dbGetQuery(con, read_file("sql/normalise_upw_14.sql.sql"))
+dbGetQuery(con, read_file("sql/normalise_upw_14.sql"))
 # Add index on DOI column
-dbGetQuery(con, read_file("sql/normalise_upw_14_index.sql.sql"))
+dbGetQuery(con, read_file("sql/normalise_upw_14_index.sql"))
 # Create table
-dbGetQuery(con, read_file("sql/normalise_wos_12_17.sql.sql"))
+#dbGetQuery(con, read_file("sql/normalise_wos_12_17.sql"))
 # Add index on DOI column
-dbGetQuery(con, read_file("sql/normalise_wos_12_17_index.sql.sql"))
+#dbGetQuery(con, read_file("sql/normalise_wos_12_17_index.sql"))
 
 ```
 
@@ -72,7 +72,7 @@ How do publication years differ between Unpaywall and WOS for articles matched w
 # Count total matches as a function of WOS publication year (Unpaywall
 # publication year = 2014).
 
-doi_matches_pubyears <- dbGetQuery(con, read_file("sql/doi_matches_publication_years.sql"))
+#doi_matches_pubyears <- dbGetQuery(con, read_file("sql/doi_matches_publication_years.sql"))
 
 doi_matches_pubyears %>%
   ggplot(aes(x=WOS_YEAR, y=MATCHES)) +
@@ -88,7 +88,7 @@ doi_matches_pubyears %>%
 
 # Count matches between Unpaywall and WOS article types
 
-doi_matches_arttypes <- dbGetQuery(con, read_file("sql/doi_matches_article_types.sql"))
+#doi_matches_arttypes <- dbGetQuery(con, read_file("sql/doi_matches_article_types.sql"))
 
 doi_matches_arttypes %>%
   ggplot(aes(y=WOS_TYPE, x=UNPAYWALL_TYPE)) +
@@ -110,7 +110,7 @@ doi_matches_arttypes %>%
 # Edit distance similarity and Jaro-Winkler similarity are calculated using
 # Oracle built-in UTL_MATCH function
 
-doi_matches_titles <- dbGetQuery(con, read_file("sql/doi_matches_title_distances.sql"))
+#doi_matches_titles <- dbGetQuery(con, read_file("sql/doi_matches_title_distances.sql"))
 
 doi_matches_titles %>%
   select(EDIT_DISTANCE_SIMILARITY, JARO_WINKLER_SIMILARITY) %>%
@@ -127,7 +127,7 @@ doi_matches_titles %>%
 # Compare title similarity of DOI-matches with similarity from a selection of 
 # randomly matched articles
 
-random_matches_titles <- dbGetQuery(con, read_file("sql/random_matches_title_distances.sql"))
+#random_matches_titles <- dbGetQuery(con, read_file("sql/random_matches_title_distances.sql"))
 
 random_matches_titles %>%
   select(EDIT_DISTANCE_SIMILARITY, JARO_WINKLER_SIMILARITY) %>%
@@ -147,15 +147,24 @@ random_matches_titles %>%
 
 ```{r}
 
-doi_matches_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_author_counts.sql"))
+#doi_matches_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_author_counts.sql"))
 
 doi_matches_authorcounts %>%
   ggplot(aes(x=UNPAYWALL_AUTHORS, y=WOS_AUTHORS)) +
-  geom_tile(aes(fill=log(MATCHES+1))) +
+  geom_tile(aes(fill=MATCHES)) +
   labs(x="Unpaywall Author Count", y="WOS Author Count") +
   scale_x_continuous(limits=c(0,100)) +
   scale_y_continuous(limits=c(0,100)) +
-  scale_fill_viridis()
+  scale_fill_viridis() +
+  theme_bw()
+
+doi_matches_authorcounts %>%
+  mutate(difference = UNPAYWALL_AUTHORS-WOS_AUTHORS) %>%
+  group_by(difference) %>%
+  summarize(sum_matches = sum(MATCHES)) %>%
+  filter(difference > -10, difference < 10) %>%
+  ggplot(aes(x=difference, y=sum_matches)) +
+  geom_bar(stat='identity')
 
 ```
 
