@@ -1,0 +1,61 @@
+---
+title: "Report on Matching of Unpaywall and Web of Science"
+authors:
+  - "Nicholas Fraser"
+  - "Anne Hobert"
+output:
+  html_document:
+    keep_md: TRUE
+    fig_caption: TRUE
+---
+## Initial setup
+
+```{r setup, include=FALSE}
+
+# knitr options
+knitr::opts_chunk$set(echo = TRUE)
+
+# Call libraries
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(viridis)
+
+# Set private credentials - these should be set in .Renviron file
+kb_username <- Sys.getenv("KB_USERNAME")
+kb_password <- Sys.getenv("KB_PASSWORD")
+
+# Open DB connection
+con <- dbConnect(odbc(), "KB", uid=kb_username, pwd=kb_password)
+
+```
+
+## Motivation
+
+-	How is matching usually done? -> via DOIs 
+-	Why is DOI matching not sufficient? -> WOS contains many items with NULL DOI values, many of which are actually included in UPW. Here we can give some statistics on the number of null values, maybe as a function of time or article type. Also manually check a few? Look at non-matched upw dois?
+
+## Data selection
+
+-	Which data will we use to test new matching methods? -> UPW data from 2014, WOS data from 2012-2017.
+-	Focus on journal articles
+
+## Data preprocessing
+
+-	How was UPW data prepared (Anne)? -> how did we get data from the UPW data dump into KB?
+-	How was data cleaned and normalised for matching (Nick)?
+
+## Matching criteria
+
+-	What potential criteria could we match on? 
+-	What is the matching potential of each criteria? Systematic analysis of matching potential (using DOI-matches) – e.g. which publication years do articles usually match on, what percentage can be matched with exact author counts, etc.
+-	Other filters that have to be considered (e.g. title blacklists)
+
+## Matching algorithm
+
+Description of algorithm
+
+## Results
+
+...
