@@ -278,13 +278,34 @@ con &lt;- dbConnect(odbc(), &quot;KB&quot;, uid=kb_username, pwd=kb_password)</c
 </ul>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBDcmVhdGUgdGFibGVcbmRiR2V0UXVlcnkoY29uLCByZWFkX2ZpbGUoXCJzcWwvbm9ybWFsaXNlX3Vwd18xNC5zcWwuc3FsXCIpKVxuYGBgIn0= -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBDcmVhdGUgdGFibGVcbmRiR2V0UXVlcnkoY29uLCByZWFkX2ZpbGUoXCJzcWwvbm9ybWFsaXNlX3Vwd18xNC5zcWxcIikpXG5gYGAifQ== -->
 <pre class="r"><code># Create table
-dbGetQuery(con, read_file(&quot;sql/normalise_upw_14.sql.sql&quot;))</code></pre>
+dbGetQuery(con, read_file(&quot;sql/normalise_upw_14.sql&quot;))</code></pre>
 <!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiRXJyb3I6ICdzcWwvbm9ybWFsaXNlX3Vwd18xNC5zcWwuc3FsJyBkb2VzIG5vdCBleGlzdCBpbiBjdXJyZW50IHdvcmtpbmcgZGlyZWN0b3J5ICgnRDovQmVudXR6ZXIvRnJhc2VyIE5pY2hvbGFzL0RvY3VtZW50cy9Qcm9qZWN0cy93b3NfdW5wYXl3YWxsX21hdGNoaW5nJykuXG4ifQ== -->
-<pre><code>Error: 'sql/normalise_upw_14.sql.sql' does not exist in current working directory ('D:/Benutzer/Fraser Nicholas/Documents/Projects/wos_unpaywall_matching').</code></pre>
-<!-- rnb-output-end -->
+<!-- rnb-frame-begin eyJtZXRhZGF0YSI6eyJjbGFzc2VzIjpbImRhdGEuZnJhbWUiXSwibmNvbCI6MCwibnJvdyI6MH0sInJkZiI6Ikg0c0lBQUFBQUFBQUJtMVBVUTZDTUF3dGcybFlncHA0RHBib0dUeUJYL3hPbUVxY0d4a2plbnEwbSt4RFFqKzIxOWUrdHU5OHFvNnNZZ0JBSUtVSmtCUmhSdkJKSUlQYy8yK0FkQThoL2dwVWk2ZnNFZXdXaXJrMUx4NGJpaVYxclVRZjFaRmtqWENDWHkzcU1CdG5rclhwWEdzMGlvaS9oODdFaVowUjIwSDdDNXF5dmcvNlVSNzhnbEQrUmJHTS9VcnltVWJSYWRSSzZsdXJaYnhkaVl0VVU3SkJwOEVvNzJ5clhYU0NiTStkY1NMMnNkcW95QVJ2TUg0QjZJSG5EbjBCQUFBPSJ9 -->
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[],"data":[],"options":{"columns":{"min":{},"max":[10],"total":[0]},"rows":{"min":[10],"max":[10],"total":[0]},"pages":{}}}
+  </script>
+</div>
+<!-- rnb-frame-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBBZGQgaW5kZXggb24gRE9JIGNvbHVtblxuZGJHZXRRdWVyeShjb24sIHJlYWRfZmlsZShcInNxbC9ub3JtYWxpc2VfdXB3XzE0X2luZGV4LnNxbFwiKSlcbmBgYCJ9 -->
+<pre class="r"><code># Add index on DOI column
+dbGetQuery(con, read_file(&quot;sql/normalise_upw_14_index.sql&quot;))</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-frame-begin eyJtZXRhZGF0YSI6eyJjbGFzc2VzIjpbImRhdGEuZnJhbWUiXSwibmNvbCI6MCwibnJvdyI6MH0sInJkZiI6Ikg0c0lBQUFBQUFBQUJtMVBVUTZDTUF3dGcybFlncHA0RHBib0dUeUJYL3hPbUVxY0d4a2plbnEwbSt4RFFqKzIxOWUrdHU5OHFvNnNZZ0JBSUtVSmtCUmhSdkJKSUlQYy8yK0FkQThoL2dwVWk2ZnNFZXdXaXJrMUx4NGJpaVYxclVRZjFaRmtqWENDWHkzcU1CdG5rclhwWEdzMGlvaS9oODdFaVowUjIwSDdDNXF5dmcvNlVSNzhnbEQrUmJHTS9VcnltVWJSYWRSSzZsdXJaYnhkaVl0VVU3SkJwOEVvNzJ5clhYU0NiTStkY1NMMnNkcW95QVJ2TUg0QjZJSG5EbjBCQUFBPSJ9 -->
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[],"data":[],"options":{"columns":{"min":{},"max":[10],"total":[0]},"rows":{"min":[10],"max":[10],"total":[0]},"pages":{}}}
+  </script>
+</div>
+<!-- rnb-frame-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBDcmVhdGUgdGFibGVcbiNkYkdldFF1ZXJ5KGNvbiwgcmVhZF9maWxlKFwic3FsL25vcm1hbGlzZV93b3NfMTJfMTcuc3FsXCIpKVxuIyBBZGQgaW5kZXggb24gRE9JIGNvbHVtblxuI2RiR2V0UXVlcnkoY29uLCByZWFkX2ZpbGUoXCJzcWwvbm9ybWFsaXNlX3dvc18xMl8xN19pbmRleC5zcWxcIikpXG5gYGAifQ== -->
+<pre class="r"><code># Create table
+#dbGetQuery(con, read_file(&quot;sql/normalise_wos_12_17.sql&quot;))
+# Add index on DOI column
+#dbGetQuery(con, read_file(&quot;sql/normalise_wos_12_17_index.sql&quot;))</code></pre>
+<!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 </div>
