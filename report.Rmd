@@ -18,20 +18,55 @@ knitr::opts_chunk$set(echo = TRUE)
 # Call libraries
 library(tidyverse)
 library(odbc)
+library(RJDBC)
 library(DBI)
 library(dbplyr)
 library(viridis)
 
-# Set private credentials - these should be set in .Renviron file
-kb_username <- Sys.getenv("KB_USERNAME")
-kb_password <- Sys.getenv("KB_PASSWORD")
+# Download ojdbc8.jar file from Oracle Website, store path to it as rjdbc_path in the environment file .Renviron, store also personal authentication credentials as kb_user01 and kb_password01 there.
 
 # Open DB connection
-con <- dbConnect(odbc(), "KB", uid=kb_username, pwd=kb_password)
 
+drv <-JDBC("oracle.jdbc.OracleDriver", classPath= Sys.getenv("rjdbc_path"), " ")
+con <- dbConnect(drv, "jdbc:oracle:thin:@//biblio-p-db01:1521/bibliodb01.fiz.karlsruhe", Sys.getenv("kb_user01"), Sys.getenv("kb_password01"))
+#con <- dbConnect(drv, "jdbc:oracle:thin:@//biblio-p-script02:22/biblioscript02.fiz.karlsruhe", Sys.getenv("KB_USERNAME"), Sys.getenv("KB_PASSWORD"))
 ```
 
 ## Motivation
+
+<!-- There is a growing need to monitor open access to scholarly literature. Information on the open access status of research publications is desired to study the development of open availability over time, phenomena connected with open access, like a possible citation advantage, to observe compliance with funder mandates and to inform decision making, be it on institutional level or in science policy.
+
+Yet, gathering information on the open access status often is not a trivial task.-->
+
+This report documents our approach to developing a procedure for the connection of items covered by the Web of Science (WoS) in-house database of the Competence Center for bibliometrics (KB) to information on their open access status contained in the Unpaywall data dump.
+
+<!--mention workshop -> fields to be included depend on matching strategy-->
+
+The most straight-forward way to perform a matching between WoS and Unpwaywall is based on [digital object identifiers (doi)](https://www.doi.org/), i.e. persistent interoperable identifiers. However, doi information in WoS in incomplete: not for all records a doi is stored in the database even though many of them are actually included in Unpaywall. Looking at items in WoS with a publication year between 2012 and 2017, we see that 
+
+```{r}
+wos_doi_cov <- dbGetQuery(con, read_file("sql/wos_doi_coverage.sql"))
+wos_doi_cov_tidy <- wos_doi_cov %>%
+  gather("is_null", "number_of_items", -TOTAL_NUMBER_OF_ITEMS, -ARTICLE_TYPE, -PUBYEAR) %>%
+  mutate(is_null = case_when(
+    is_null == "NUMBER_OF_NULLS" ~ TRUE,
+    is_null == "NUMBER_OF_DOIS" ~ FALSE
+  )) %>%
+  select(-TOTAL_NUMBER_OF_ITEMS)
+wos_doi_cov_tidy %>%
+#  filter(ARTICLE_TYPE %in% c("article", "review")) %>%
+  group_by(PUBYEAR, is_null) %>%
+  summarise(number_of_items = sum(number_of_items)) %>%
+  ggplot(aes(x = PUBYEAR, y = number_of_items)) + 
+    geom_bar(aes(fill = is_null), stat = "identity", position = "dodge")
+wos_doi_cov_tidy %>%
+  group_by(ARTICLE_TYPE, is_null) %>%
+  summarise(number_of_items = sum(number_of_items)) %>%
+  ggplot(aes(x = ARTICLE_TYPE, y = number_of_items)) + 
+    geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
+    coord_flip()
+
+```
 
 -	How is matching usually done? -> via DOIs 
 -	Why is DOI matching not sufficient? -> WOS contains many items with NULL DOI values, many of which are actually included in UPW. Here we can give some statistics on the number of null values, maybe as a function of time or article type. Also manually check a few? Look at non-matched upw dois?
