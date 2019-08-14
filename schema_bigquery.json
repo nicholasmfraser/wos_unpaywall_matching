@@ -1,0 +1,50 @@
+[
+  {
+    "name": "doi",
+    "type": "STRING"
+  },
+  {
+    "name": "year",
+    "type": "INTEGER"
+  },
+  {
+    "name": "genre",
+    "type": "STRING"
+  },
+  {
+    "name": "title",
+    "type": "STRING"
+  },
+  {
+    "name": "AuthorCount",
+    "type": "INTEGER"
+  },
+  {
+    "fields": [
+      {
+        "name": "given",
+        "type": "STRING"
+      },
+      {
+        "name": "family",
+        "type": "STRING"
+      }
+    ],
+    "name": "AuthorFirst",
+    "type": "RECORD"
+  },
+  {
+    "fields": [
+      {
+        "name": "given",
+        "type": "STRING"
+      },
+      {
+        "name": "family",
+        "type": "STRING"
+      }
+    ],
+    "name": "AuthorLast",
+    "type": "RECORD"
+  }
+]

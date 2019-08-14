@@ -117,33 +117,162 @@ wos_doi_cov_tidy %>%
   group_by(article_type_grouped, is_null) %>%
   summarise(number_of_items = sum(number_of_items)) %>%
   arrange(desc(number_of_items)) %>%
-  ggplot(aes(x = fct_reorder(article_type_grouped, desc(number_of_items)), y = number_of_items)) + 
+  ggplot(aes(x = fct_relevel(fct_reorder(article_type_grouped, desc(number_of_items)), "Other", after = Inf), y = number_of_items)) + 
     geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
     coord_flip() + 
-    labs(x = "Publication year", y = "Number of itmes", fill = "DOI is null?",
+    labs(x = "Publication year", y = "Number of items", fill = "DOI is null?",
          title = "What article types have null-DOI in WoS?")
 ```
-
+In this figure we see that missing DOIs are an issue particularly for proceedings papers, meeting abstracts, book reviews and marginal categories (`Other`). The proportion of journal articles and reviews without DOI is much lower, as the above results already indicated. However, previous studies have shown that for earlier publication years the DOI coverage is much worse also for these two article types. <!-- insert references or formulate query-->
 
 ## Data selection
 
--	Which data will we use to test new matching methods? -> UPW data from 2014, WOS data from 2012-2017.
--	Focus on journal articles
+To develop and test our matching strategy we decided to focus on data from Unpaywall with publication year 2014 to reduce storage space needed (the whole Unpaywall data dump needs more than 100 GB). For the most recent years often indexeing lags cause problems and, as just mentioned, for earlier years the DOI coverage within WoS is much worse. Since the registered publication dates in WoS and Unpaywall sometimes differ (for example, because one takes the online publication date and the other the print publication date), we compared publication years for the entries that could be matched based on DOI. The results are shown in the following figure.
+
+```{r}
+
+# Count total matches as a function of WOS publication year (Unpaywall
+# publication year = 2014).
+
+#Gather data
+doi_matches_pubyears <- dbGetQuery(con, read_file("sql/doi_matches_publication_years.sql"))
+
+#Display results
+doi_matches_pubyears %>%
+  ggplot(aes(x=WOS_YEAR, y=MATCHES)) +
+  geom_bar(stat="identity") +
+  labs(x="WOS Publication Year", y="Number of DOI matched items", title = "How do publication years differ between Unpaywall (2014) and WOS\nfor items matched based on DOIs?") +
+  theme_bw()
+
+```
+
+Most items have the same publication year, 2014, in WoS as in the Unpaywall data dump. Some items are associated with one or two years later in WoS than in Unpaywall. A negligible amount of items (`round(doi_matches_pubyears %>% filter(WOS_YEAR %in% c(2012, 2017)) %>% summarise(n = sum(MATCHES))/sum(doi_matches_pubyears$MATCHES), 4)*100` percent of all matched items) is mapped to publication years 2012 or 2017 in WoS. Based on this, we decided to focus try to match items in Unpaywall with items from Wos having the same publication year, or one or two years later.
+
+We further decided to focus exlusively on journal articles and reviews since these are the article types covered best in WoS <!-- insert reference--> and we consider them to be most relevant for the studies and scenarios where our matching strategy might be applied.
+
+This means that from the Unpaywall data we only consider records with publication year 2014 that have the `genre` `journal-article`. We also restrict the data from WoS to items with publication years between 2014 and 2016 and `article type` `article` or `review` in this analysis .
 
 ## Data preprocessing
 
--	How was UPW data prepared (Anne)? -> how did we get data from the UPW data dump into KB?
--	How was data cleaned and normalised for matching (Nick)?
+We obtained our set of Unpaywall articles similarly to how it is described in our [blog post on open access evidence in Unpaywall](https://subugoe.github.io/scholcomm_analytics/posts/unpaywall_evidence/). We will outline the main steps again in the following.
+
+First, we downloaded the most recent Unpaywall data dump released in April 2019 from [here](https://s3-us-west-2.amazonaws.com/unpaywall-data-snapshots/) and imported it into a local MongoDB database. The snapshot contains more than 100 million records and hence, the file is about 100 GB large. To obtain a more manageable object to work with, we extracted the fields which are most relevant to our matching objective using the following query:
+
+```{bash}
+"C:\Program Files\MongoDB\Server\4.0\bin\mongo.exe"
+db.unpaywallApr19.aggregate([
+   {
+      $match: {
+          year: { $gte: 2014, $lte: 2016}
+      }
+   },
+   {
+      $project: {
+          doi: 1,
+          year: 1,
+          genre: 1,
+          title: 1,
+          AuthorCount: { $cond: { if: { $isArray: "$z_authors" }, then: { $size: "$z_authors" }, else: null} },
+          AuthorFirst: { $cond: { if: { $isArray: "$z_authors" }, then: { $arrayElemAt: [ "$z_authors", 0 ] }, else: null } },
+          AuthorLast: { $cond: { if: { $isArray: "$z_authors" }, then: { $arrayElemAt: [ "$z_authors", -1 ] }, else: null } }
+      }
+   },
+   {
+      $out: 'authorInformation' 
+   }
+] )
+```
+
+Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need to be exchanged. We filtered for publication years between 2014 and 2016, extracted doi, publication year, article type (`genre`), article title, and some author information, namely the number of authors, and the given and family names of the first and last author. For single author articles, the first and last author coincide. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (paid service, access protected), specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported them into the oracle environment of the KB.
+
+<!-- -	How was data cleaned and normalised for matching (Nick)?-->
 
 ## Matching criteria
 
+<!--(Nick)
 -	What potential criteria could we match on? 
 -	What is the matching potential of each criteria? Systematic analysis of matching potential (using DOI-matches) – e.g. which publication years do articles usually match on, what percentage can be matched with exact author counts, etc.
--	Other filters that have to be considered (e.g. title blacklists)
+-	Other filters that have to be considered (e.g. title blacklists)-->
 
 ## Matching algorithm
 
-Description of algorithm
+<!--(Anne/Nick)
+Description of algorithm-->
+
+The first step of our matching routine is simply using DOIs where they exist and are present in both databases. The more interesting part is the matching of articles without DOI information based on the criteria discussed in the previous section. As mentioned before, we only consider `journal article`s from Unpaywall and `articles`s and `review`s from WoS. We only try to match articles where the publication year from WoS is the same as or up to two years after the one in Unpaywall. Since all Unpaywall articles we investigated in this analysis are from 2014, we perform the matching on WoS articles with publication year between 2014 and 2016.
+
+Both datasets contain titles which occur in multiple rows. We decided to exclude all of these titles from our matching candidates since we want to think of an article's title as unique for this publication. We therefore created tables listing such titles using [these queries](create_title_blacklists.sql) to later exclude the corresponding entries from the matching. We also exluded all titles starting with one of the keywords contain in [this list](title_keyword_blacklist.csv), e.g. "correction", "erratum", or "addendum" since they would otherwise wrongly be matched with the original articles. <!-- maybe make this a preprocessing step? Might also reduce runtime of the matching algorithm!-->
+
+Since the comparison of titles to determine their similarity measure is costly, we try to narrow down the subset of possible matching candidates as far as possible using the following criteria:
+
+- pubyear: As mentioned, before we require the publication year in WoS to be the same as or up to two years after the Unpaywall publication year.
+- journal information: We restrict matching candidates to records with the same ISSN or (exactly) the same journal title. When multiple ISSNs are associated with an article (e.g. of the print and electronic version of the journal), we compare to all of them.
+- author count: We compare only articles with coinciding number of authors.
+
+Then, we classify as matched articles the ones which have a title similarity (edit distance) of more than 80 percent.
+
+This results in the following query to obtain a list of matchings:
+
+```{sql}
+CREATE TABLE UPW14_WOS_MATCHING_RESULTS_3 AS WITH DOI_MATCHES AS (SELECT
+    t1.DOI AS DOI
+FROM
+    GESISNFRASER.UPW_14_NORM t1
+INNER JOIN
+    GESISNFRASER.WOS_12_17_NORM t2
+ON
+    t1.DOI = t2.DOI
+    AND t1.ARTICLE_TYPE = 'journal-article'
+    AND t2.ARTICLE_TYPE IN ('article', 'review'))
+SELECT
+    t1.doi as upw_doi, t1.pubyear as upw_pubyear, t1.article_type as upw_article_type, t1.article_title as upw_article_title, t1.authorcount as upw_authorcount,
+    t1.first_author_name as upw_first_author_name, t1.last_author_name as upw_last_author_name, t1.journal_name as upw_journal_name, t1.journal_issns as upw_journal_issns,
+    t3.pk_items as wos_pk_items, t3.doi as wos_doi, t3.pubyear as wos_pubyear, t3.article_type as wos_article_type, t3.article_title as wos_article_title, t3.authorcount as wos_authorcount,
+    t3.journal_name as wos_journal_name, t3.journal_issns as wos_journal_issns
+FROM
+    GESISNFRASER.UPW_14_NORM t1
+LEFT JOIN
+    GESISNFRASER.UPW_14_NORM_ISSNS t2
+ON
+    t1.DOI = t2.DOI
+INNER JOIN
+    GESISNFRASER.WOS_12_17_NORM t3
+ON
+    (t2.ISSN_VALUE = t3.JOURNAL_ISSNS OR t1.JOURNAL_NAME = t3.JOURNAL_NAME)
+    AND t3.PUBYEAR <= (t1.PUBYEAR + 2)
+    AND t3.PUBYEAR >= t1.PUBYEAR
+    AND t1.AUTHORCOUNT = t3.AUTHORCOUNT
+    AND t1.ARTICLE_TITLE NOT IN (SELECT ARTICLE_TITLE FROM GESISNFRASER.UPW_14_TITLE_BLACKLIST WHERE ARTICLE_TITLE is not null)
+    AND t3.ARTICLE_TITLE NOT IN (SELECT ARTICLE_TITLE FROM GESISNFRASER.WOS_12_17_TITLE_BLACKLIST WHERE ARTICLE_TITLE is not null)
+    AND UTL_MATCH.EDIT_DISTANCE_SIMILARITY(t1.ARTICLE_TITLE, t3.ARTICLE_TITLE) > 80
+    AND t1.ARTICLE_TYPE = 'journal-article'
+    AND t3.ARTICLE_TYPE IN ('article', 'review')
+    AND t1.DOI NOT IN (SElECT DOI FROM DOI_MATCHES)
+    AND (t3.DOI is null or t3.DOI NOT IN (SElECT DOI FROM DOI_MATCHES))
+    AND NOT EXISTS(
+      SELECT
+        1
+      FROM
+        gwdgahobert.title_keyword_blacklist
+      WHERE
+        regexp_substr(t1.article_title, '^[^\. ]+') like title_keyword_blacklist.expression || '%'
+        or regexp_substr(t3.article_title, '^[^\. ]+') like title_keyword_blacklist.expression || '%')
+UNION
+SELECT
+    t1.doi as upw_doi, t1.pubyear as upw_pubyear, t1.article_type as upw_article_type, t1.article_title as upw_article_title, t1.authorcount as upw_authorcount,
+    t1.first_author_name as upw_first_author_name, t1.last_author_name as upw_last_author_name, t1.journal_name as upw_journal_name, t1.journal_issns as upw_journal_issns,
+    t3.pk_items as wos_pk_items, t3.doi as wos_doi, t3.pubyear as wos_pubyear, t3.article_type as wos_article_type, t3.article_title as wos_article_title, t3.authorcount as wos_authorcount,
+    t3.journal_name as wos_journal_name, t3.journal_issns as wos_journal_issns
+FROM
+    GESISNFRASER.UPW_14_NORM t1
+INNER JOIN
+    GESISNFRASER.WOS_12_17_NORM t3
+ON
+    t1.DOI = t3.DOI
+    AND t1.ARTICLE_TYPE = 'journal-article'
+    AND t3.ARTICLE_TYPE IN ('article', 'review');
+
+```
 
 ## Results
 
