@@ -79,11 +79,28 @@ wos_doi_cov_tidy %>%
 ## Data preprocessing
 
 -	How was UPW data prepared (Anne)? -> how did we get data from the UPW data dump into KB?
+
 -	How was data cleaned and normalised for matching (Nick)?
+
+For matching of fields between WoS and Unpaywall, it is necessary to standardise (or normalise) and clean data.
+
+The following steps were taken:
+
+- DOI (WoS and Unpaywall): Remove leading or trailing whitespace (Oracle 'TRIM' function), set to lowercase (Oracle 'LOWER' function)
+- Article title: Remove leading or trailing whitespace, set to lowercase
+- Journal name
+- Author names?
+
+
 
 ## Matching criteria
 
--	What potential criteria could we match on? 
+-	What potential criteria could we match on?
+
+In this report we focus on a subset of criteria which may potentially be used to match WoS and Unpaywall records. Namely, we focus on DOIs, article titles, journal titles and ISSNs, and authorship information including author counts and names. We note that these criteria are not exhaustive, for example volume or issue number, however these criteria
+
+
+
 -	What is the matching potential of each criteria? Systematic analysis of matching potential (using DOI-matches) – e.g. which publication years do articles usually match on, what percentage can be matched with exact author counts, etc.
 -	Other filters that have to be considered (e.g. title blacklists)
 
