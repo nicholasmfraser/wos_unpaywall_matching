@@ -28,6 +28,7 @@ library(viridis)
 
 drv <-JDBC("oracle.jdbc.OracleDriver", classPath= Sys.getenv("rjdbc_path"), " ")
 con <- dbConnect(drv, "jdbc:oracle:thin:@//biblio-p-db01:1521/bibliodb01.fiz.karlsruhe", Sys.getenv("kb_user01"), Sys.getenv("kb_password01"))
+
 ```
 
 ## Motivation
@@ -193,32 +194,260 @@ Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need
 <!-- -	How was data cleaned and normalised for matching (Nick)?-->
 >>>>>>> 863b9667a6c03f26b19ec1b6dd114e6b1b766880
 
-For matching of fields between WoS and Unpaywall, it is necessary to standardise (or normalise) and clean data.
+For matching of records between WoS and Unpaywall, a necessary first step is to clean and normalise the data, both to improve matching efficiency and performance of SQL queries. For example, when matching on the DOI field, it is necessary that both DOIs are in the same letter case, and do not contain any superfluous characters (e.g. leading and trailing whitespaces), otherwise matches may be missed.
 
-The following steps were taken:
+For both Unpaywall and WoS we applied the following cleaning and normalisation procedures:
 
-- DOI (WoS and Unpaywall): Remove leading or trailing whitespace (Oracle 'TRIM' function), set to lowercase (Oracle 'LOWER' function)
-- Article title: Remove leading or trailing whitespace, set to lowercase
-- Journal name
-- Author names?
+DOIs: Converted to lowercase (Oracle `LOWER()` function) and trimmed leading and trailing whitespace (Oracle `TRIM()` function)
+Article titles: Converted to lowercase and trimmed leading and trailing whitespace
+Journal titles: Converted to lowercase and trimmed leading and trailing whitespace
+Author names: Author names were 'blocked' by concatenating the first initial of the first name, and the full last name (following the approach of e.g. Caron and Van Eck, 2014 <!-- Ref list? -->, for large-scale author disambiguation). Author names were first converted to lowercase and leading and trailing whitespace was trimmed. A REGEX function was used to remove special characters from last names prior to concatenation (in Oracle: `REGEXP_REPLACE(NAME, '[^A-Za-z]','')`).
 
 
+=======
 
 ## Matching criteria
 
-<<<<<<< HEAD
--	What potential criteria could we match on?
+A number of features may be appropriate for matching articles between bibliographic databases <!-- reference?! -->. In the best case scenario, persistent identifiers such as DOIs can be used for direct matching. In the cases where persistent identifiers are missing, other characteristics of an article and its authorship may be used for matching, such as the article title, journal title or ISSN, or author names. However, none of these features are 100 % unique (e.g. articles can share titles, or authors can share names) and thus using them in isolation may lead to unreliable matches. A combination of these characteristics can produce more precise matching.
 
-In this report we focus on a subset of criteria which may potentially be used to match WoS and Unpaywall records. Namely, we focus on DOIs, article titles, journal titles and ISSNs, and authorship information including author counts and names. We note that these criteria are not exhaustive, for example volume or issue number, however these criteria
+In this report we focus on an initial subset of characteristics which may potentially be used for matching between WOS and Unpaywall, including article titles, ISSNs, author counts and author names. These criteria were selected primarily due to data availability and coverage in both databases, but are not exhaustive and may be supplemented with further characteristics in future (e.g. page numbers). 
+
+Note that for the following sections, we refer to the cleaned and normalised datasets of WOS and Unpaywall documented in the previous section.
+
+### Article titles
+
+Article titles are potentially a good candidate for matching due to their high coverage: 
+
+```{r}
+
+# Should limit to Article and Review type documents?
+
+wos_article_title_coverage <- dbGetQuery(con, read_file("sql/wos_article_title_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+upw_article_title_coverage <- dbGetQuery(con, read_file("sql/upw_article_title_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+wos_article_title_uniques <- dbGetQuery(con, read_file("sql/wos_article_title_uniques.sql")) %>% 
+  pull(PCT_UNIQUE)
+
+upw_article_title_uniques <- dbGetQuery(con, read_file("sql/upw_article_title_uniques.sql")) %>% 
+  pull(PCT_UNIQUE)
+
+```
+
+`r wos_article_title_coverage` % of 'article' and 'review' type documents in WOS, and `r upw_article_title_coverage` % of 'journal-article' type documents in Unpaywall have a title. However, only `r wos_article_title_uniques` % of 'article' and 'review' titles in WOS are unique, compared to `r upw_article_title_uniques` of 'journal-articles' in Unpaywall, suggesting that direct matching of titles may lead to a high number of false-positive matches.
+
+To better understand the the potential for using article titles for matching articles without DOIs, we can consider inverse set of DOI-matched articles (i.e. as a 'gold standard'), and compare their title characteristics. We first check the percentage of DOI-matched articles that also have exactly matching titles:
+
+```{r}
+
+# Calculate percentage of doi-matched articles with exactly matching titles
+
+doi_matches_exact_titles <- dbGetQuery(con, read_file("sql/doi_matches_exact_titles.sql")) %>%
+  pull(PCT_EXACT_TITLE_MATCHES)
+
+```
+
+We find that only `r doi_matches_exact_titles` % <!-- ~ 76% --> of doi-matched articles have exactly matching titles. <!-- What are reasons for low percentage of exact title matches? Character encoding / handling of special characters? -->
+
+An alternative to exact matching is to consider approximate string matching. Oracle provides two built-in functions as part of the `UTL_MATCH` package for approximate string matching: `EDIT_DISTANCE_SIMILARITY()` AND `JARO_WINKLER_SIMILARITY()`. Both functions provide a similarity score that is normalised such that 1 equates to perfect similarity and 0 to no similarity (or 100 % and 0 % when given as percentages, respectively). `EDIT_DISTANCE_SIMILARITY()` provides a similarity score based upon the Levenshtein distance between two strings (see https://en.wikipedia.org/wiki/Levenshtein_distance), which counts the number of  edits (insertions, deletions, or substitutions) needed to convert one string to the other. `JARO_WINKLER_SIMILARITY()` provides a similarity score based on the Jaro-Winkler distance (https://en.wikipedia.org/wiki/Jaro-Winkler_distance), which measures the number of characters in common and number of transpositions.
+
+Below we plot a histogram of showing the proportion of matching titles in our DOI-matched set, as a function of the two similarity measures. Note that for performance reasons, we use a small sample of the Unpaywall results set (~5%, using the Oracle `SAMPLE(5)` function):
+
+```{r}
+
+#doi_matches_title_similarity <- dbGetQuery(con, read_file("sql/doi_matches_title_similarity.sql"))
+
+doi_matches_title_similarity %>%
+  select(EDIT_DISTANCE_SIMILARITY, JARO_WINKLER_SIMILARITY) %>%
+  gather("EDIT_DISTANCE_SIMILARITY", "JARO_WINKLER_SIMILARITY", 
+         key="method", 
+         value="similarity") %>%
+  group_by(method, similarity) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n/sum(n)) %>%
+  ggplot(aes(x=similarity, y=freq, fill=method, color=method)) +
+  geom_bar(stat="identity") +
+  labs(y="Percentage Matched", x="Title Similarity") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks=seq(from=0, to=1, by=0.1), labels=scales::percent) +
+  scale_x_continuous(breaks=seq(from=0, to=100, by=10)) +
+  facet_wrap(~method)
+
+```
+
+These plots show that `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` have similar distributions of similarity scores for titles on DOI-matched articles. A threshold appears to exist at approximately 90 % similarity<!-- or 80%? It depends how much you zoom in on the y-axis... -->, below which very few titles are matched, potentially indicating a suitable threshold below which title similarities should be considered unreliable.
+
+An additional method to assess the efficacy of the different similarity matching methods is to assess matching similarity on randomly matched articles, i.e. assuming that random titles should not be the same:
+
+```{r}
+
+#random_matches_title_similarity <- dbGetQuery(con, read_file("sql/random_matches_title_similarity.sql"))
+
+random_matches_title_similarity %>%
+ select(EDIT_DISTANCE_SIMILARITY, JARO_WINKLER_SIMILARITY) %>%
+  gather("EDIT_DISTANCE_SIMILARITY", "JARO_WINKLER_SIMILARITY", 
+         key="method", 
+         value="similarity") %>%
+  group_by(method, similarity) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n/sum(n)) %>%
+  ggplot(aes(x=similarity, y=freq, fill=method, color=method)) +
+  geom_bar(stat="identity") +
+  labs(y="Percentage Matched", x="Title Similarity") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks=seq(from=0, to=1, by=0.1), labels=scales::percent) +
+  scale_x_continuous(breaks=seq(from=0, to=100, by=10)) +
+  coord_cartesian(xlim=c(0,100)) +
+  facet_wrap(~method)
+
+```
+
+These plots show that the `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` produce much lower similarity scores when used to compare random titles, than when comparing titles of doi-matched articles. These results suggest that matching via string similarity functions can be an effective method to increase the number of matches whilst retaining high precision. Notably, we can see different distribution patterns between the two similarity measures - it appears that `EDIT_DISTANCE_SIMILARITY()` produces much lower similarity scores (median = `r median(random_matches_title_similarity$EDIT_DISTANCE_SIMILARITY`) with less overlap with the distribution of DOI-matched articles, compared to `JARO_WINKLER_SIMILARITY()` (median = `r median(random_matches_title_similarity$JARO_WINKLER_SIMILARITY`).
+
+We can thus interpret that `EDIT_DISTANCE_SIMILARITY()` is a more appropriate measure for matching titles. For the remainder of this report we have thus implemented the `EDIT_DISTANCE_SIMILARITY()` function, with a similarity threshold of 80 %, for matching of article titles.
+
+### Journal Titles 
+
+<!-- Coverage -->
+
+```{r}
+
+# Coverage of journal titles in WOS and Unpaywall
+
+wos_journal_coverage <- dbGetQuery(con, read_file("sql/wos_journal_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+upw_journal_coverage <- dbGetQuery(con, read_file("sql/upw_journal_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+```
+
+<!-- Matching -->
+
+```{r}
+
+# Calculate percentage of doi-matched articles with exactly matching titles
+
+doi_matches_exact_journals <- dbGetQuery(con, read_file("sql/doi_matches_exact_journals.sql")) %>%
+  pull(PCT_EXACT_JOURNAL_MATCHES)
+
+```
+
+### ISSNs
+
+<!-- Coverage -->
+
+```{r}
+
+# Coverage of journal titles in WOS and Unpaywall
+
+wos_issn_coverage <- dbGetQuery(con, read_file("sql/wos_issn_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+upw_issn_coverage <- dbGetQuery(con, read_file("sql/upw_issn_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+```
+
+<!-- Matching. Note Unpaywall ISSNs are separated in another table - maybe need to document in preprocessing section -->
+
+```{r}
+
+# Calculate percentage of doi-matched articles with exactly matching ISSNS
+
+doi_matches_exact_issns <- dbGetQuery(con, read_file("sql/doi_matches_exact_issns.sql")) %>%
+  pull(PCT_EXACT_ISSN_MATCHES)
+
+```
+
+### Author counts
+
+<!-- Coverage -->
+
+```{r}
+
+wos_authorcount_coverage <- dbGetQuery(con, read_file("sql/wos_authorcount_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+upw_authorcount_coverage <- dbGetQuery(con, read_file("sql/upw_authorcount_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+```
+
+<!-- Matching -->
+
+```{r}
+
+doi_matches_exact_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_exact_authorcounts.sql")) %>%
+  pull(PCT_EXACT_AUTHORCOUNT_MATCHES)
+
+```
+
+<!-- Graph showing difference in WoS and Unpaywall author counts-->
+
+```{r}
+
+doi_matches_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_all_authorcounts.sql"))
+
+doi_matches_authorcounts %>%
+  ggplot(aes(x=UNPAYWALL_AUTHORS, y=WOS_AUTHORS)) +
+  geom_tile(aes(fill=MATCHES)) +
+  labs(x="Unpaywall Author Count", y="WoS Author Count") +
+  scale_x_continuous(limits=c(0,100)) +
+  scale_y_continuous(limits=c(0,100)) +
+  scale_fill_viridis() +
+  theme_bw()
+
+doi_matches_authorcounts %>%
+  mutate(difference = UNPAYWALL_AUTHORS-WOS_AUTHORS) %>%
+  group_by(difference) %>%
+  summarize(sum_matches = sum(MATCHES)) %>%
+  filter(difference > -10, difference < 10) %>%
+  ggplot(aes(x=difference, y=sum_matches)) +
+  geom_bar(stat='identity')
+
+```
+
+### Author names
+
+<!-- Coverage -->
+
+```{r}
+
+
+# Need to check! This doesn't work - null values can be double counted.
+
+wos_first_author_name_coverage <- dbGetQuery(con, read_file("sql/wos_first_author_name_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+wos_last_author_name_coverage <- dbGetQuery(con, read_file("sql/wos_last_author_name_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+upw_first_author_name_coverage <- dbGetQuery(con, read_file("sql/upw_first_author_name_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+upw_last_author_name_coverage <- dbGetQuery(con, read_file("sql/upw_last_author_name_coverage.sql")) %>% 
+  pull(PCT_COVERAGE)
+
+```
+
+<!-- Matching -->
+
+```{r}
+
+
+
+
+
+```
 
 
 
 =======
-<!--(Nick)
--	What potential criteria could we match on? 
->>>>>>> 863b9667a6c03f26b19ec1b6dd114e6b1b766880
--	What is the matching potential of each criteria? Systematic analysis of matching potential (using DOI-matches) – e.g. which publication years do articles usually match on, what percentage can be matched with exact author counts, etc.
--	Other filters that have to be considered (e.g. title blacklists)-->
 
 ## Matching algorithm
 

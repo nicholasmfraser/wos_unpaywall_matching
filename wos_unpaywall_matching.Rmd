@@ -110,7 +110,7 @@ doi_matches_arttypes %>%
 # Edit distance similarity and Jaro-Winkler similarity are calculated using
 # Oracle built-in UTL_MATCH function
 
-#doi_matches_titles <- dbGetQuery(con, read_file("sql/doi_matches_title_distances.sql"))
+doi_matches_titles <- dbGetQuery(con, read_file("sql/doi_matches_title_distances.sql"))
 
 doi_matches_titles %>%
   select(EDIT_DISTANCE_SIMILARITY, JARO_WINKLER_SIMILARITY) %>%
@@ -147,7 +147,7 @@ random_matches_titles %>%
 
 ```{r}
 
-#doi_matches_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_author_counts.sql"))
+#doi_matches_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_all_authorcounts.sql"))
 
 doi_matches_authorcounts %>%
   ggplot(aes(x=UNPAYWALL_AUTHORS, y=WOS_AUTHORS)) +
