@@ -44,7 +44,7 @@ This report documents our approach to developing a procedure for the connection 
 The most straight-forward way to perform a matching between WoS and Unpwaywall is based on [digital object identifiers (doi)](https://www.doi.org/), i.e. persistent interoperable identifiers. However, doi information in WoS is incomplete: not for all records a doi is stored in the database even though many of them are actually included in Unpaywall.
 
 ```{r}
-#wos_doi_cov <- dbGetQuery(con, read_file("sql/wos_doi_coverage.sql"))
+wos_doi_cov <- dbGetQuery(con, read_file("sql/wos_doi_coverage.sql"))
 wos_doi_cov_tidy <- wos_doi_cov %>%
   gather("is_null", "number_of_items", -TOTAL_NUMBER_OF_ITEMS, -ARTICLE_TYPE, -PUBYEAR) %>%
   mutate(is_null = case_when(
@@ -309,6 +309,34 @@ random_matches_title_similarity %>%
 These plots show that the `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` produce much lower similarity scores when used to compare random titles, than when comparing titles of doi-matched articles. These results suggest that matching via string similarity functions can be an effective method to increase the number of matches whilst retaining high precision. Notably, we can see different distribution patterns between the two similarity measures - it appears that `EDIT_DISTANCE_SIMILARITY()` produces much lower similarity scores (median = `r median(random_matches_title_similarity$EDIT_DISTANCE_SIMILARITY`) with less overlap with the distribution of DOI-matched articles, compared to `JARO_WINKLER_SIMILARITY()` (median = `r median(random_matches_title_similarity$JARO_WINKLER_SIMILARITY`).
 
 We can thus interpret that `EDIT_DISTANCE_SIMILARITY()` is a more appropriate measure for matching titles. For the remainder of this report we have thus implemented the `EDIT_DISTANCE_SIMILARITY()` function, with a similarity threshold of 80 %, for matching of article titles.
+
+### Article title length
+
+```{r}
+
+# DOI-matched articles
+#doi_matches_title_length <- dbGetQuery(con, read_file("sql/doi_matches_title_length.sql"))
+
+doi_matches_title_length %>%
+  rename(COUNT = "COUNT(*)") %>%
+  ggplot(aes(x=DIFF, y=COUNT)) +
+  geom_bar(stat="identity") +
+  coord_cartesian(xlim=c(0,100))
+
+```
+
+```{r}
+
+# Randomly matched articles
+#random_matches_title_length <- dbGetQuery(con, read_file("sql/random_matches_title_length.sql"))
+
+random_matches_title_length %>%
+  rename(COUNT = "COUNT(*)") %>%
+  ggplot(aes(x=DIFF, y=COUNT)) +
+  geom_bar(stat="identity") +
+  coord_cartesian(xlim=c(0,100))
+
+```
 
 ### Journal Titles 
 
