@@ -203,6 +203,15 @@ Article titles: Converted to lowercase and trimmed leading and trailing whitespa
 Journal titles: Converted to lowercase and trimmed leading and trailing whitespace
 Author names: Author names were 'blocked' by concatenating the first initial of the first name, and the full last name (following the approach of e.g. Caron and Van Eck, 2014 <!-- Ref list? -->, for large-scale author disambiguation). Author names were first converted to lowercase and leading and trailing whitespace was trimmed. A REGEX function was used to remove special characters from last names prior to concatenation (in Oracle: `REGEXP_REPLACE(NAME, '[^A-Za-z]','')`).
 
+```{r}
+dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm.sql"))
+dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm_index.sql"))
+dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_issns.sql"))
+
+dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm.sql"))
+dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm_index.sql"))
+
+```
 
 =======
 
@@ -222,10 +231,10 @@ Article titles are potentially a good candidate for matching due to their high c
 
 # Should limit to Article and Review type documents?
 
-wos_article_title_coverage <- dbGetQuery(con, read_file("sql/wos_article_title_coverage.sql")) %>% 
+wos_article_title_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_wos_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
 
-upw_article_title_coverage <- dbGetQuery(con, read_file("sql/upw_article_title_coverage.sql")) %>% 
+upw_article_title_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_upw_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
 
 wos_article_title_uniques <- dbGetQuery(con, read_file("sql/wos_article_title_uniques.sql")) %>% 
@@ -477,6 +486,11 @@ upw_last_author_name_coverage <- dbGetQuery(con, read_file("sql/upw_last_author_
 
 =======
 
+## Data preparation
+
+Both datasets contain articles titles which occur in multiple rows. We decided to exclude all of these titles from our matching candidates since we want to think of an article's title as unique for this publication. We therefore created tables listing such titles using [these queries](create_title_blacklists.sql) to later exclude the corresponding entries from the matching. We also exluded all titles starting with one of the keywords contain in [this list](title_keyword_blacklist.csv), e.g. "correction", "erratum", or "addendum" since they would otherwise wrongly be matched with the original articles.
+
+
 ## Matching algorithm
 
 <!--(Anne/Nick)
@@ -484,7 +498,7 @@ Description of algorithm-->
 
 The first step of our matching routine is simply using DOIs where they exist and are present in both databases. The more interesting part is the matching of articles without DOI information based on the criteria discussed in the previous section. As mentioned before, we only consider `journal article`s from Unpaywall and `articles`s and `review`s from WoS. We only try to match articles where the publication year from WoS is the same as or up to two years after the one in Unpaywall. Since all Unpaywall articles we investigated in this analysis are from 2014, we perform the matching on WoS articles with publication year between 2014 and 2016.
 
-Both datasets contain titles which occur in multiple rows. We decided to exclude all of these titles from our matching candidates since we want to think of an article's title as unique for this publication. We therefore created tables listing such titles using [these queries](create_title_blacklists.sql) to later exclude the corresponding entries from the matching. We also exluded all titles starting with one of the keywords contain in [this list](title_keyword_blacklist.csv), e.g. "correction", "erratum", or "addendum" since they would otherwise wrongly be matched with the original articles. <!-- maybe make this a preprocessing step? Might also reduce runtime of the matching algorithm!-->
+
 
 Since the comparison of titles to determine their similarity measure is costly, we try to narrow down the subset of possible matching candidates as far as possible using the following criteria:
 
@@ -497,5 +511,10 @@ Then, we classify as matched articles the ones which have a title similarity (ed
 This results in the query stored as [create_upw14_wos_matching_results_3.sql](create_upw14_wos_matching_results_3.sql) to obtain a list of matchings.
 
 ## Results
+
+```{sql connection = con, output.var="match_res"}
+SELECT * FROM GWDGAHOBERT.UPW14_WOS_MATCHING_RESULTS_4
+```
+
 
 ...
