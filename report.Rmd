@@ -210,7 +210,7 @@ Author names: Author names were 'blocked' by concatenating the first initial of 
 
 A number of features may be appropriate for matching articles between bibliographic databases <!-- reference?! -->. In the best case scenario, persistent identifiers such as DOIs can be used for direct matching. In the cases where persistent identifiers are missing, other characteristics of an article and its authorship may be used for matching, such as the article title, journal title or ISSN, or author names. However, none of these features are 100 % unique (e.g. articles can share titles, or authors can share names) and thus using them in isolation may lead to unreliable matches. A combination of these characteristics can produce more precise matching.
 
-In this report we focus on an initial subset of characteristics which may potentially be used for matching between WOS and Unpaywall, including article titles, ISSNs, author counts and author names. These criteria were selected primarily due to data availability and coverage in both databases, but are not exhaustive and may be supplemented with further characteristics in future (e.g. page numbers). 
+In this report we focus on an initial subset of characteristics which may potentially be used for matching between WOS and Unpaywall, including article titles, ISSNs, author counts. These criteria were selected primarily due to data availability and coverage in both databases, but are not exhaustive and may be supplemented with further characteristics in future (e.g. page numbers). 
 
 Note that for the following sections, we refer to the cleaned and normalised datasets of WOS and Unpaywall documented in the previous section.
 
