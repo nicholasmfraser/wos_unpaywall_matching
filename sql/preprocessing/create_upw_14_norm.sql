@@ -1,4 +1,22 @@
-CREATE TABLE UPW_14_NORM_TEST2 AS WITH NORM_DATA AS (
+CREATE TABLE UPW_NORM_ AS WITH TITLES AS (SELECT 
+    LOWER(TRIM(TITLE)) AS ARTICLE_TITLE
+FROM 
+    GWDGAHOBERT.UPW_APR19_MATCHINGTEST_14
+WHERE
+    GENRE = 'journal-article'
+    AND TITLE IS NOT NULL
+    AND NOT EXISTS (
+      SELECT
+            1
+        FROM
+            gwdgahobert.title_keyword_blacklist
+        WHERE
+          regexp_substr(LOWER(TRIM(TITLE)), '^[^\. ]+') like GWDGAHOBERT.title_keyword_blacklist.expression || '%'
+      )
+GROUP BY
+    LOWER(TRIM(TITLE))
+HAVING
+    COUNT(*) = 1)
 SELECT
     LOWER(TRIM(DOI)) AS DOI,
     YEAR AS PUBYEAR,
@@ -10,27 +28,5 @@ SELECT
 FROM
     GWDGAHOBERT.UPW_APR19_MATCHINGTEST_14
 WHERE
-    GENRE = 'journal-article')
-SELECT
-    *
-FROM
-    NORM_DATA
-WHERE NOT EXISTS (
-  SELECT
-        1
-    FROM
-        gwdgahobert.title_keyword_blacklist
-    WHERE
-      regexp_substr(NORM_DATA.article_title, '^[^\. ]+') like GWDGAHOBERT.title_keyword_blacklist.expression || '%'
-  )
-  AND ARTICLE_TITLE NOT IN (
-    SELECT 
-        ARTICLE_TITLE
-    FROM 
-        NORM_DATA
-    WHERE
-        ARTICLE_TITLE IS NOT NULL
-    GROUP BY
-        ARTICLE_TITLE
-    HAVING
-        COUNT(*) > 1)
+    GENRE = 'journal-article'
+    AND LOWER(TRIM(TITLE)) IN (SELECT ARTICLE_TITLE FROM TITLES)
