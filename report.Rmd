@@ -491,14 +491,16 @@ In order to speed up matching we created an index for the DOI column in both tab
 
 
 ```{r}
-#Prepare Unpaywall tables for matching
-dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm.sql"))
-dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm_index.sql"))
-dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_issns.sql"))
+#Prepare Unpaywall tables for matching, only run once
 
-#Prepare WoS tables for matching
-dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm.sql"))
-dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm_index.sql"))
+# dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm.sql"))
+# dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm_index.sql"))
+# dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_issns.sql"))
+
+#Prepare WoS tables for matching, only run once
+
+# dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm.sql"))
+# dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm_index.sql"))
 
 ```
 
@@ -514,19 +516,19 @@ The first step of our matching routine is simply using DOIs where they exist and
 
 Since the comparison of titles to determine their similarity measure is costly, we try to narrow down the subset of possible matching candidates as far as possible using the following criteria:
 
-- pubyear: As mentioned, before we require the publication year in WoS to be the same as or up to two years after the Unpaywall publication year.
+- pubyear: As mentioned, before we require the publication year in WoS to be the same as or up to two years after the Unpaywall publication year. This is already implemented in the preprocessing of the two matching tables.
 - journal information: We restrict matching candidates to records with the same ISSN or (exactly) the same journal title. When multiple ISSNs are associated with an article (e.g. of the print and electronic version of the journal), we compare to all of them.
 - author count: We compare only articles with coinciding number of authors.
+- length of article title: We compare only articles where the lengths of the article titles differ no more than 10 characters.
 
 Then, we classify as matched articles the ones which have a title similarity (edit distance) of more than 80 percent.
 
-This results in the query stored as [create_upw14_wos_matching_results_3.sql](create_upw14_wos_matching_results_3.sql) to obtain a list of matchings.
+This results in the query stored as [create_upw14_wos_matching_results.sql](create_upw14_wos_matching_results.sql) to obtain a list of matchings.
+
+To evaluate the performance of our matching algorithm, we also run the matching algorithm on the two matching tables without using any DOI information (see the query [create_upw_14_wos_matching_results_eval.sql](create_upw_14_wos_matching_results_eval.sql)).
 
 ## Results
 
-```{sql connection = con, output.var="match_res"}
-SELECT * FROM GWDGAHOBERT.UPW14_WOS_MATCHING_RESULTS_4
-```
 
 
 ## Discussion and Recommendations
