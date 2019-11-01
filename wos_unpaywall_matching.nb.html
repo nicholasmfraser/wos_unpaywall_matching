@@ -1754,15 +1754,48 @@ summary {
 <h1>Initial Setup</h1>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBDYWxsIGxpYnJhcmllc1xubGlicmFyeSh0aWR5dmVyc2UpXG5saWJyYXJ5KG9kYmMpXG5saWJyYXJ5KERCSSlcbmxpYnJhcnkoZGJwbHlyKVxubGlicmFyeSh2aXJpZGlzKVxuXG4jIFNldCBwcml2YXRlIGNyZWRlbnRpYWxzIC0gdGhlc2Ugc2hvdWxkIGJlIHNldCBpbiAuUmVudmlyb24gZmlsZVxua2JfdXNlcm5hbWUgPC0gU3lzLmdldGVudihcIktCX1VTRVJOQU1FXCIpXG5rYl9wYXNzd29yZCA8LSBTeXMuZ2V0ZW52KFwiS0JfUEFTU1dPUkRcIilcblxuYGBgIn0= -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBDYWxsIGxpYnJhcmllc1xubGlicmFyeSh0aWR5dmVyc2UpXG5gYGAifQ== -->
 <pre class="r"><code># Call libraries
-library(tidyverse)
-library(odbc)
+library(tidyverse)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiUmVnaXN0ZXJlZCBTMyBtZXRob2Qgb3ZlcndyaXR0ZW4gYnkgJ2RwbHlyJzpcbiAgbWV0aG9kICAgICAgICAgICBmcm9tXG4gIHByaW50LnJvd3dpc2VfZGYgICAgIFxuXHUwMDFiWzM3bS0tIFx1MDAxYlsxbUF0dGFjaGluZyBwYWNrYWdlc1x1MDAxYlsyMm0gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tIHRpZHl2ZXJzZSAxLjIuMSAtLVx1MDAxYlszOW1cblx1MDAxYlszN21cdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bWdncGxvdDJcdTAwMWJbMzdtIDMuMi4xICAgICBcdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bXB1cnJyICBcdTAwMWJbMzdtIDAuMy4yXG5cdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bXRpYmJsZSBcdTAwMWJbMzdtIDIuMS4zICAgICBcdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bWRwbHlyICBcdTAwMWJbMzdtIDAuOC4zXG5cdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bXRpZHlyICBcdTAwMWJbMzdtIDAuOC4zICAgICBcdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bXN0cmluZ3JcdTAwMWJbMzdtIDEuNC4wXG5cdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bXJlYWRyICBcdTAwMWJbMzdtIDEuMy4xICAgICBcdTAwMWJbMzJtdlx1MDAxYlszN20gXHUwMDFiWzM0bWZvcmNhdHNcdTAwMWJbMzdtIDAuNC4wXHUwMDFiWzM5bVxuXHUwMDFiWzM3bS0tIFx1MDAxYlsxbUNvbmZsaWN0c1x1MDAxYlsyMm0gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tIHRpZHl2ZXJzZV9jb25mbGljdHMoKSAtLVxuXHUwMDFiWzMxbXhcdTAwMWJbMzdtIFx1MDAxYlszNG1kcGx5clx1MDAxYlszN206Olx1MDAxYlszMm1maWx0ZXIoKVx1MDAxYlszN20gbWFza3MgXHUwMDFiWzM0bXN0YXRzXHUwMDFiWzM3bTo6ZmlsdGVyKClcblx1MDAxYlszMW14XHUwMDFiWzM3bSBcdTAwMWJbMzRtZHBseXJcdTAwMWJbMzdtOjpcdTAwMWJbMzJtbGFnKClcdTAwMWJbMzdtICAgIG1hc2tzIFx1MDAxYlszNG1zdGF0c1x1MDAxYlszN206OmxhZygpXHUwMDFiWzM5bVxuIn0= -->
+<pre><code>Registered S3 method overwritten by &#39;dplyr&#39;:
+  method           from
+  print.rowwise_df     
+[37m-- [1mAttaching packages[22m --------------------------------------- tidyverse 1.2.1 --[39m
+[37m[32mv[37m [34mggplot2[37m 3.2.1     [32mv[37m [34mpurrr  [37m 0.3.2
+[32mv[37m [34mtibble [37m 2.1.3     [32mv[37m [34mdplyr  [37m 0.8.3
+[32mv[37m [34mtidyr  [37m 0.8.3     [32mv[37m [34mstringr[37m 1.4.0
+[32mv[37m [34mreadr  [37m 1.3.1     [32mv[37m [34mforcats[37m 0.4.0[39m
+[37m-- [1mConflicts[22m ------------------------------------------ tidyverse_conflicts() --
+[31mx[37m [34mdplyr[37m::[32mfilter()[37m masks [34mstats[37m::filter()
+[31mx[37m [34mdplyr[37m::[32mlag()[37m    masks [34mstats[37m::lag()[39m</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubGlicmFyeShvZGJjKVxubGlicmFyeShEQkkpXG5saWJyYXJ5KGRicGx5cilcbmBgYCJ9 -->
+<pre class="r"><code>library(odbc)
 library(DBI)
-library(dbplyr)
-library(viridis)
+library(dbplyr)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiUmVnaXN0ZXJlZCBTMyBtZXRob2RzIG92ZXJ3cml0dGVuIGJ5ICdkYnBseXInOlxuICBtZXRob2QgICAgICAgICBmcm9tXG4gIHByaW50LnRibF9sYXp5ICAgICBcbiAgcHJpbnQudGJsX3NxbCAgICAgIFxuXG5BdHRhY2hpbmcgcGFja2FnZTog46S847ixZGJwbHly46S847iyXG5cblRoZSBmb2xsb3dpbmcgb2JqZWN0cyBhcmUgbWFza2VkIGZyb20g46S847ixcGFja2FnZTpkcGx5cuOkvOO4sjpcblxuICAgIGlkZW50LCBzcWxcbiJ9 -->
+<pre><code>Registered S3 methods overwritten by &#39;dbplyr&#39;:
+  method         from
+  print.tbl_lazy     
+  print.tbl_sql      
 
-# Set private credentials - these should be set in .Renviron file
+Attaching package: 㤼㸱dbplyr㤼㸲
+
+The following objects are masked from 㤼㸱package:dplyr㤼㸲:
+
+    ident, sql</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubGlicmFyeSh2aXJpZGlzKVxuYGBgIn0= -->
+<pre class="r"><code>library(viridis)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTG9hZGluZyByZXF1aXJlZCBwYWNrYWdlOiB2aXJpZGlzTGl0ZVxuIn0= -->
+<pre><code>Loading required package: viridisLite</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBTZXQgcHJpdmF0ZSBjcmVkZW50aWFscyAtIHRoZXNlIHNob3VsZCBiZSBzZXQgaW4gLlJlbnZpcm9uIGZpbGVcbmtiX3VzZXJuYW1lIDwtIFN5cy5nZXRlbnYoXCJLQl9VU0VSTkFNRVwiKVxua2JfcGFzc3dvcmQgPC0gU3lzLmdldGVudihcIktCX1BBU1NXT1JEXCIpXG5cbmBgYCJ9 -->
+<pre class="r"><code># Set private credentials - these should be set in .Renviron file
 kb_username &lt;- Sys.getenv(&quot;KB_USERNAME&quot;)
 kb_password &lt;- Sys.getenv(&quot;KB_PASSWORD&quot;)
 </code></pre>
@@ -1771,10 +1804,15 @@ kb_password &lt;- Sys.getenv(&quot;KB_PASSWORD&quot;)
 <!-- rnb-text-begin -->
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBPcGVuIERCIGNvbm5lY3Rpb25cbmNvbiA8LSBkYkNvbm5lY3Qob2RiYygpLCBcIktCXCIsIHVpZD1rYl91c2VybmFtZSwgcHdkPWtiX3Bhc3N3b3JkKVxuYGBgIn0= -->
-<pre class="r"><code># Open DB connection
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuXG4jIE9wZW4gREIgY29ubmVjdGlvblxuY29uIDwtIGRiQ29ubmVjdChvZGJjKCksIFwiS0JcIiwgdWlkPWtiX3VzZXJuYW1lLCBwd2Q9a2JfcGFzc3dvcmQpXG5gYGAifQ== -->
+<pre class="r"><code>
+# Open DB connection
 con &lt;- dbConnect(odbc(), &quot;KB&quot;, uid=kb_username, pwd=kb_password)</code></pre>
 <!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiRXJyb3I6IG5hbm9kYmMvbmFub2RiYy5jcHA6OTUwOiAwODAwNDogW09yYWNsZV1bT0RCQ11bT3JhXU9SQS0xMjE1NDogVE5TOmNvdWxkIG5vdCByZXNvbHZlIHRoZSBjb25uZWN0IGlkZW50aWZpZXIgc3BlY2lmaWVkXG4gXG4ifQ== -->
+<pre><code>Error: nanodbc/nanodbc.cpp:950: 08004: [Oracle][ODBC][Ora]ORA-12154: TNS:could not resolve the connect identifier specified
+ </code></pre>
+<!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 </div>

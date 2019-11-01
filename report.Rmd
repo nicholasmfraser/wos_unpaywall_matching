@@ -233,13 +233,10 @@ Article titles are potentially a good candidate for matching due to their high c
 
 wos_article_title_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_wos_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
-
 upw_article_title_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_upw_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
-
 wos_article_title_uniques <- dbGetQuery(con, read_file("sql/wos_article_title_uniques.sql")) %>% 
   pull(PCT_UNIQUE)
-
 upw_article_title_uniques <- dbGetQuery(con, read_file("sql/upw_article_title_uniques.sql")) %>% 
   pull(PCT_UNIQUE)
 
@@ -319,6 +316,8 @@ These plots show that the `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILAR
 
 We can thus interpret that `EDIT_DISTANCE_SIMILARITY()` is a more appropriate measure for matching titles. For the remainder of this report we have thus implemented the `EDIT_DISTANCE_SIMILARITY()` function, with a similarity threshold of 80 %, for matching of article titles.
 
+<!-- We use a threshold of 80 %, which captures XX % of all doi-matched articles -->
+
 ### Article title length
 
 ```{r}
@@ -346,6 +345,11 @@ random_matches_title_length %>%
   coord_cartesian(xlim=c(0,100))
 
 ```
+
+### Article title blacklist/duplicates/something
+
+<!-- Take a sample, show that there are duplicate titles which should be excluded. Show why a keyword blacklist is necessary -->
+
 
 ### Journal Titles 
 
@@ -516,5 +520,8 @@ This results in the query stored as [create_upw14_wos_matching_results_3.sql](cr
 SELECT * FROM GWDGAHOBERT.UPW14_WOS_MATCHING_RESULTS_4
 ```
 
+## Recommendations
 
+
+## Bibliography
 ...
