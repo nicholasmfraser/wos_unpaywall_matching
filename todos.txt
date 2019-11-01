@@ -1,7 +1,7 @@
 ToDos
 
-- Motivation section: run on whole of Wos to show long term trends in DOI coverage (Anne)
-- Data preprocessing: purely data acquisition and cleaning, move publication year analysis to matching criteria
+- Motivation section: run on whole of Wos to show long term trends in DOI coverage (Anne) (DONE)
+- Data selection: purely data acquisition and cleaning (DONE), move publication year analysis to matching criteria
 - matching criteria: go through queries, move to subfolders, rename, change table space, change filenames in report document (Nick)
 - after matching criteria: data preparation (blacklist, pubyear, article type preprocessing + maybe article length column) (Anne)
 - matching algorithm: decide whether to use with or without extra matched dois, maybe two versions (Anne)

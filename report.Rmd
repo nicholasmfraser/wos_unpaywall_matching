@@ -22,11 +22,11 @@ library(DBI)
 library(dbplyr)
 library(viridis)
 
-# Download ojdbc8.jar file from Oracle Website, store path to it as rjdbc_path in the environment file .Renviron, store also personal authentication credentials as kb_user01 and kb_password01 there.
+# Store also personal authentication credentials as kb_user01 and kb_password01 in .Renviron file.
 
 # Open DB connection
 
-drv <-JDBC("oracle.jdbc.OracleDriver", classPath= Sys.getenv("rjdbc_path"), " ")
+drv <-JDBC("oracle.jdbc.OracleDriver", classPath= "jdbc_driver/ojdbc8.jar")
 con <- dbConnect(drv, "jdbc:oracle:thin:@//biblio-p-db01:1521/bibliodb01.fiz.karlsruhe", Sys.getenv("kb_user01"), Sys.getenv("kb_password01"))
 
 ```
@@ -39,12 +39,11 @@ Yet, gathering information on the open access status often is not a trivial task
 
 This report documents our approach to developing a procedure for the connection of items covered by the Web of Science (WoS) in-house database of the Competence Center for bibliometrics (KB) to information on their open access status contained in the Unpaywall data dump.
 
-<!--mention workshop: fields to be included in the kb version of the dump depend on matching strategy-->
-
 The most straight-forward way to perform a matching between WoS and Unpwaywall is based on [digital object identifiers (doi)](https://www.doi.org/), i.e. persistent interoperable identifiers. However, doi information in WoS is incomplete: not for all records a doi is stored in the database even though many of them are actually included in Unpaywall.
 
 ```{r}
 wos_doi_cov <- dbGetQuery(con, read_file("sql/wos_doi_coverage.sql"))
+write_csv(wos_doi_cov, "data/wos_doi_coverage.csv")
 wos_doi_cov_tidy <- wos_doi_cov %>%
   gather("is_null", "number_of_items", -TOTAL_NUMBER_OF_ITEMS, -ARTICLE_TYPE, -PUBYEAR) %>%
   mutate(is_null = case_when(
@@ -61,7 +60,10 @@ wos_doi_cov_tidy %>%
     geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
     labs(x = "Publication year", y = "Number of items", fill = "DOI is null?",
          title = "What number of items have null-DOI in WoS?")
+```
+Looking at all `r wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n` items in the WoS-KB bibliometric database (`wos_b_2019`) we see that only `r wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` of them contain DOI information, corresponding to `r round((wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %.  The figure reveals that almost all of the items in WoS with a publication year before 2000 are missing any DOI information. Indeed, of `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n` items older than 2000 in total, only `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` contain DOI information, corresponding to about `r round((wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %. In more recent years, the number of items including DOI information rises continuously. The coverage is much better here, with `r round((wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of items published from 2000 onwards having DOI information. The decline in the number of items with and without doi in the last years is probably due to an indexing lag.
 
+```{r}
 # Number of null DOIs within articles and reviews per year
 wos_doi_cov_tidy %>%
   filter(ARTICLE_TYPE %in% c("article", "review")) %>%
@@ -72,9 +74,8 @@ wos_doi_cov_tidy %>%
     labs(x = "Publication year", y = "Number of articles", fill = "DOI is null?",
          title = "What number of articles and reviews have null-DOI in WoS?")
 ```
-Looking at items in WoS with a publication year between 2012 and 2017, we see that throughout the years, exluding the last one, about `{r} floor(wos_doi_cov_tidy %>% group_by(PUBYEAR, is_null) %>% summarise(number_of_items = sum(number_of_items)) %>% ungroup() %>% filter(is_null == TRUE, PUBYEAR < 2017) %>% summarize(av = mean(number_of_items))/10000) *10000` items do not have any doi information. In the same period, the number of items containing doi information rises continuously from `{r} wos_doi_cov_tidy %>% filter(PUBYEAR == 2012, is_null == FALSE) %>% summarise(number_of_items = sum(number_of_items))` in 2012 to `{r} wos_doi_cov_tidy %>% filter(PUBYEAR == 2016, is_null == FALSE) %>% summarise(number_of_items = sum(number_of_items))` in 2016. The decline in the number of items with and without doi in the last year, 2017, is probably due to an indexing lag. In total, `{r} round(sum(wos_doi_cov_tidy %>% filter(is_null == TRUE) %>% .$number_of_items)/sum(wos_doi_cov_tidy$number_of_items), 4)*100` percent of all items do not have any doi information.
 
-This figure is much smaller if we focus on journal articles an reviews only: Over the whole period from 2012 to 2017, only `{r} round(sum(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review")) %>% filter(is_null == TRUE) %>% .$number_of_items)/sum(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review")) %>% .$number_of_items),4 )*100` of all articles indexed in WoS do not have any doi information. Moreover, the absolute number of articles, where the doi is null is declining, as is the proportion of articles without doi. The latter decreases even more strongly, from `{r} round(sum(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2012) %>% filter(is_null == TRUE) %>% .$number_of_items)/sum(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2012) %>% .$number_of_items),4 )*100` percent in 2012 to only `{r} round(sum(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2017) %>% filter(is_null == TRUE) %>% .$number_of_items)/sum(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2017) %>% .$number_of_items),4 )*100` in 2016.
+The observed trend is similar if we focus on the document types journal articles and reviews only. Overall, `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review")) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of all articles and reviews contain DOI information. Again, the percentage is extremely low for publication years before 2000 (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %), and higher for recent years (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %). Moreover, for these document types, we observe that the number of items missing DOI information decreases continuously from 2000 onwards, leading to a coverage of `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % in 2017.
 
 We now want to investigate more thoroughly how the proportion of items without doi depends on the article type. In order to keep the figures readable, we first identify the most common article types and collate the remaining ones in the category `Other`. Looking at the number of items per article type in the following figures, we decide to keep all types with more than `100,000` items.
 
@@ -124,42 +125,16 @@ wos_doi_cov_tidy %>%
     labs(x = "Publication year", y = "Number of items", fill = "DOI is null?",
          title = "What article types have null-DOI in WoS?")
 ```
-In this figure we see that missing DOIs are an issue particularly for proceedings papers, meeting abstracts, book reviews and marginal categories (`Other`). The proportion of journal articles and reviews without DOI is much lower, as the above results already indicated. However, previous studies have shown that for earlier publication years the DOI coverage is much worse also for these two article types. <!-- insert references or formulate query-->
+In this figure we see that missing DOIs are an issue particularly for proceedings papers, meeting abstracts, book reviews and marginal categories (`Other`). The proportion of journal articles and reviews without DOI is much lower, as the above results already indicated.
 
-## Data selection
+## Data selection and acquistion
 
-To develop and test our matching strategy we decided to focus on data from Unpaywall with publication year 2014 to reduce storage space needed (the whole Unpaywall data dump needs more than 100 GB). For the most recent years often indexeing lags cause problems and, as just mentioned, for earlier years the DOI coverage within WoS is much worse. Since the registered publication dates in WoS and Unpaywall sometimes differ (for example, because one takes the online publication date and the other the print publication date), we compared publication years for the entries that could be matched based on DOI. The results are shown in the following figure.
-
-```{r}
-
-# Count total matches as a function of WOS publication year (Unpaywall
-# publication year = 2014).
-
-#Gather data
-doi_matches_pubyears <- dbGetQuery(con, read_file("sql/doi_matches_publication_years.sql"))
-
-#Display results
-doi_matches_pubyears %>%
-  ggplot(aes(x=WOS_YEAR, y=MATCHES)) +
-  geom_bar(stat="identity") +
-  labs(x="WOS Publication Year", y="Number of DOI matched items", title = "How do publication years differ between Unpaywall (2014) and WOS\nfor items matched based on DOIs?") +
-  theme_bw()
-
-```
-
-Most items have the same publication year, 2014, in WoS as in the Unpaywall data dump. Some items are associated with one or two years later in WoS than in Unpaywall. A negligible amount of items (`round(doi_matches_pubyears %>% filter(WOS_YEAR %in% c(2012, 2017)) %>% summarise(n = sum(MATCHES))/sum(doi_matches_pubyears$MATCHES), 4)*100` percent of all matched items) is mapped to publication years 2012 or 2017 in WoS. Based on this, we decided to focus try to match items in Unpaywall with items from Wos having the same publication year, or one or two years later.
+To develop and test our matching strategy we decided to focus on data from Unpaywall with publication year 2014 to reduce storage space needed (the whole Unpaywall data dump needs more than 100 GB). For the most recent years often indexeing lags cause problems and, as just mentioned, for earlier years the DOI coverage within WoS is much worse.
 
 We further decided to focus exlusively on journal articles and reviews since these are the article types covered best in WoS <!-- insert reference--> and we consider them to be most relevant for the studies and scenarios where our matching strategy might be applied.
 
-This means that from the Unpaywall data we only consider records with publication year 2014 that have the `genre` `journal-article`. We also restrict the data from WoS to items with publication years between 2014 and 2016 and `article type` `article` or `review` in this analysis .
+This means that from the Unpaywall data we only consider records with publication year 2014 that have the `genre` `journal-article`. 
 
-## Data preprocessing
-
-<<<<<<< HEAD
--	How was UPW data prepared (Anne)? -> how did we get data from the UPW data dump into KB?
-
--	How was data cleaned and normalised for matching (Nick)?
-=======
 We obtained our set of Unpaywall articles similarly to how it is described in our [blog post on open access evidence in Unpaywall](https://subugoe.github.io/scholcomm_analytics/posts/unpaywall_evidence/). We will outline the main steps again in the following.
 
 First, we downloaded the most recent Unpaywall data dump released in April 2019 from [here](https://s3-us-west-2.amazonaws.com/unpaywall-data-snapshots/) and imported it into a local MongoDB database. The snapshot contains more than 100 million records and hence, the file is about 100 GB large. To obtain a more manageable object to work with, we extracted the fields which are most relevant to our matching objective using the following query:
@@ -189,31 +164,33 @@ db.unpaywallApr19.aggregate([
 ] )
 ```
 
-Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need to be exchanged. We filtered for publication years between 2014 and 2016, extracted doi, publication year, article type (`genre`), article title, and some author information, namely the number of authors, and the given and family names of the first and last author. For single author articles, the first and last author coincide. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (paid service, access protected), specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported them into the oracle environment of the KB.
+Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need to be exchanged. We initially filtered for publication years between 2014 and 2016, extracted doi, publication year, article type (`genre`), article title, and some author information, namely the number of authors, and the given and family names of the first and last author. For single author articles, the first and last author coincide. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (paid service, access protected), specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported the one corresponding to the publication year 2014 into the oracle environment of the KB.
 
-<!-- -	How was data cleaned and normalised for matching (Nick)?-->
->>>>>>> 863b9667a6c03f26b19ec1b6dd114e6b1b766880
+<!-- move this to criteria section
 
-For matching of records between WoS and Unpaywall, a necessary first step is to clean and normalise the data, both to improve matching efficiency and performance of SQL queries. For example, when matching on the DOI field, it is necessary that both DOIs are in the same letter case, and do not contain any superfluous characters (e.g. leading and trailing whitespaces), otherwise matches may be missed.
-
-For both Unpaywall and WoS we applied the following cleaning and normalisation procedures:
-
-DOIs: Converted to lowercase (Oracle `LOWER()` function) and trimmed leading and trailing whitespace (Oracle `TRIM()` function)
-Article titles: Converted to lowercase and trimmed leading and trailing whitespace
-Journal titles: Converted to lowercase and trimmed leading and trailing whitespace
-Author names: Author names were 'blocked' by concatenating the first initial of the first name, and the full last name (following the approach of e.g. Caron and Van Eck, 2014 <!-- Ref list? -->, for large-scale author disambiguation). Author names were first converted to lowercase and leading and trailing whitespace was trimmed. A REGEX function was used to remove special characters from last names prior to concatenation (in Oracle: `REGEXP_REPLACE(NAME, '[^A-Za-z]','')`).
+Since the registered publication dates in WoS and Unpaywall sometimes differ (for example, because one takes the online publication date and the other the print publication date), we compared publication years for the entries that could be matched based on DOI. The results are shown in the following figure.
 
 ```{r}
-dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm.sql"))
-dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm_index.sql"))
-dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_issns.sql"))
 
-dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm.sql"))
-dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm_index.sql"))
+# Count total matches as a function of WOS publication year (Unpaywall
+# publication year = 2014).
+
+#Gather data
+doi_matches_pubyears <- dbGetQuery(con, read_file("sql/doi_matches_publication_years.sql"))
+
+#Display results
+doi_matches_pubyears %>%
+  ggplot(aes(x=WOS_YEAR, y=MATCHES)) +
+  geom_bar(stat="identity") +
+  labs(x="WOS Publication Year", y="Number of DOI matched items", title = "How do publication years differ between Unpaywall (2014) and WOS\nfor items matched based on DOIs?") +
+  theme_bw()
 
 ```
 
-=======
+Most items have the same publication year, 2014, in WoS as in the Unpaywall data dump. Some items are associated with one or two years later in WoS than in Unpaywall. A negligible amount of items (`round(doi_matches_pubyears %>% filter(WOS_YEAR %in% c(2012, 2017)) %>% summarise(n = sum(MATCHES))/sum(doi_matches_pubyears$MATCHES), 4)*100` percent of all matched items) is mapped to publication years 2012 or 2017 in WoS. Based on this, we decided to focus try to match items in Unpaywall with items from Wos having the same publication year, or one or two years later.
+
+We also restrict the data from WoS to items with publication years between 2014 and 2016 and `article type` `article` or `review` in this analysis . -->
+
 
 ## Matching criteria
 
@@ -488,11 +465,48 @@ upw_last_author_name_coverage <- dbGetQuery(con, read_file("sql/upw_last_author_
 
 
 
-=======
+## Data preprocessing
 
-## Data preparation
+For matching of records between WoS and Unpaywall, a necessary first step is to clean and normalise the data, both to improve matching efficiency and performance of SQL queries. For example, when matching on the DOI field, it is necessary that both DOIs are in the same letter case, and do not contain any superfluous characters (e.g. leading and trailing whitespaces), otherwise matches may be missed.
 
-Both datasets contain articles titles which occur in multiple rows. We decided to exclude all of these titles from our matching candidates since we want to think of an article's title as unique for this publication. We therefore created tables listing such titles using [these queries](create_title_blacklists.sql) to later exclude the corresponding entries from the matching. We also exluded all titles starting with one of the keywords contain in [this list](title_keyword_blacklist.csv), e.g. "correction", "erratum", or "addendum" since they would otherwise wrongly be matched with the original articles.
+For both Unpaywall and WoS we applied the following cleaning and normalisation procedures:
+
+DOIs: Converted to lowercase (Oracle `LOWER()` function) and trimmed leading and trailing whitespace (Oracle `TRIM()` function)
+Article titles: Converted to lowercase and trimmed leading and trailing whitespace
+Journal titles: Converted to lowercase and trimmed leading and trailing whitespace
+
+<!-- not needed anymore?
+
+Author names: Author names were 'blocked' by concatenating the first initial of the first name, and the full last name (following the approach of e.g. Caron and Van Eck, 2014 #Ref list? , for large-scale author disambiguation). Author names were first converted to lowercase and leading and trailing whitespace was trimmed. A REGEX function was used to remove special characters from last names prior to concatenation (in Oracle: `REGEXP_REPLACE(NAME, '[^A-Za-z]','')`).-->
+
+As mentioned before, we restricted the analysis to document types `journal-article` (Unpaywall) or `article` and `review` (WoS). From the imported Unpaywall table, and the WoS-KB database, we retrieved the fields we found to be potentially usefull in the previous section, namely:
+
+- DOI
+- Publication year
+- Article title
+- Length of the article title
+- Author count
+- Journal name
+- Journal ISSNs
+
+As shown in the previous section on potential matching criteria, both datasets contain articles titles which occur in multiple rows. We decided to exclude all of these titles from our matching candidates since we want to think of an article's title as unique for this publication. We also exluded all titles starting with one of the keywords contained in [this list](title_keyword_blacklist.csv), e.g. "correction", "erratum", or "addendum" since they would otherwise wrongly be matched with the original articles.
+
+In order to speed up matching we created an index for the DOI column in both tables.
+
+
+```{r}
+#Prepare Unpaywall tables for matching, only run once
+
+# dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm.sql"))
+# dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_norm_index.sql"))
+# dbGetQuery(con, read_file("sql/preprocessing/create_upw_14_issns.sql"))
+
+#Prepare WoS tables for matching, only run once
+
+# dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm.sql"))
+# dbGetQuery(con, read_file("sql/preprocessing/create_wos_14_16_norm_index.sql"))
+
+```
 
 
 ## Matching algorithm
@@ -506,22 +520,24 @@ The first step of our matching routine is simply using DOIs where they exist and
 
 Since the comparison of titles to determine their similarity measure is costly, we try to narrow down the subset of possible matching candidates as far as possible using the following criteria:
 
-- pubyear: As mentioned, before we require the publication year in WoS to be the same as or up to two years after the Unpaywall publication year.
+- pubyear: As mentioned, before we require the publication year in WoS to be the same as or up to two years after the Unpaywall publication year. This is already implemented in the preprocessing of the two matching tables.
 - journal information: We restrict matching candidates to records with the same ISSN or (exactly) the same journal title. When multiple ISSNs are associated with an article (e.g. of the print and electronic version of the journal), we compare to all of them.
 - author count: We compare only articles with coinciding number of authors.
+- length of article title: We compare only articles where the lengths of the article titles differ no more than 10 characters.
 
 Then, we classify as matched articles the ones which have a title similarity (edit distance) of more than 80 percent.
 
-This results in the query stored as [create_upw14_wos_matching_results_3.sql](create_upw14_wos_matching_results_3.sql) to obtain a list of matchings.
+This results in the query stored as [create_upw14_wos_matching_results.sql](create_upw14_wos_matching_results.sql) to obtain a list of matchings.
+
+To evaluate the performance of our matching algorithm, we also run the matching algorithm on the two matching tables without using any DOI information (see the query [create_upw_14_wos_matching_results_eval.sql](create_upw_14_wos_matching_results_eval.sql)).
 
 ## Results
 
-```{sql connection = con, output.var="match_res"}
-SELECT * FROM GWDGAHOBERT.UPW14_WOS_MATCHING_RESULTS_4
-```
+## Discussion and Recommendations
 
-## Recommendations
+### Runtime
 
+Preprocessing the data to generate the normalized and cleaned up tables `upw_14_norm` and `wos_14_16_norm` takes several minutes each.
 
-## Bibliography
-...
+# Bibliography
+
