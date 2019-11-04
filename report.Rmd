@@ -166,20 +166,30 @@ db.unpaywallApr19.aggregate([
 
 Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need to be exchanged. We initially filtered for publication years between 2014 and 2016, extracted doi, publication year, article type (`genre`), article title, and some author information, namely the number of authors, and the given and family names of the first and last author. For single author articles, the first and last author coincide. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (paid service, access protected), specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported the one corresponding to the publication year 2014 into the oracle environment of the KB.
 
-<!-- move this to criteria section
+## Matching criteria
 
-Since the registered publication dates in WoS and Unpaywall sometimes differ (for example, because one takes the online publication date and the other the print publication date), we compared publication years for the entries that could be matched based on DOI. The results are shown in the following figure.
+A number of features may be appropriate for matching articles between bibliographic databases <!-- reference?! -->. In the best case scenario, persistent identifiers such as DOIs can be used for direct matching. In the cases where persistent identifiers are missing, other characteristics of an article and its authorship may be used for matching, such as the article title, journal title or ISSNs. However, none of these features are 100 % unique (e.g. articles can share titles, or authors can share names) and thus using them in isolation may lead to unreliable matches. A combination of these characteristics can produce more precise matching.
+
+In this report we focus on an initial subset of characteristics which may potentially be used for matching between WOS and Unpaywall, including publication years, article titles, ISSNs, and author counts. These criteria were selected primarily due to data availability and coverage in both databases, but are not exhaustive and may be supplemented with further characteristics in future (e.g. page numbers). 
+
+A description of the selected matching criteria follows. Note that for the following sections, items in WoS are limited only to 'article' and 'review' document types, and Unpaywall items to 'journal-article' types.
+
+### Publication years
+
+An initial way to filter potentially matching records is via their registered publication years in the two datasets. However, the registered publication dates in WoS and Unpaywall sometimes differ (for example, because one takes the online publication date and the other the print publication date). Below we show the number of items that can be matched between our Unpaywall dataset (publication year = 2014) and all items in WoS, as a function of the WoS publication year:
 
 ```{r}
 
-# Count total matches as a function of WOS publication year (Unpaywall
-# publication year = 2014).
+# DOI matches as a function of WOS publication year (Unpaywall publication year = 2014).
 
-#Gather data
-doi_matches_pubyears <- dbGetQuery(con, read_file("sql/doi_matches_publication_years.sql"))
+if(file.exists("data/criteria/publication_years_doi_matches.csv")){
+  publication_years_doi_matches <- read_csv("data/criteria/publication_years_doi_matches.csv")
+} else {
+  publication_years_doi_matches <- dbGetQuery(con, read_file("sql/criteria/publication_years_doi_matches.sql"))
+  write_csv(publication_years_doi_matches, "data/criteria/publication_years_doi_matches.csv")
+}
 
-#Display results
-doi_matches_pubyears %>%
+publication_years_doi_matches %>%
   ggplot(aes(x=WOS_YEAR, y=MATCHES)) +
   geom_bar(stat="identity") +
   labs(x="WOS Publication Year", y="Number of DOI matched items", title = "How do publication years differ between Unpaywall (2014) and WOS\nfor items matched based on DOIs?") +
@@ -187,18 +197,7 @@ doi_matches_pubyears %>%
 
 ```
 
-Most items have the same publication year, 2014, in WoS as in the Unpaywall data dump. Some items are associated with one or two years later in WoS than in Unpaywall. A negligible amount of items (`round(doi_matches_pubyears %>% filter(WOS_YEAR %in% c(2012, 2017)) %>% summarise(n = sum(MATCHES))/sum(doi_matches_pubyears$MATCHES), 4)*100` percent of all matched items) is mapped to publication years 2012 or 2017 in WoS. Based on this, we decided to focus try to match items in Unpaywall with items from Wos having the same publication year, or one or two years later.
-
-We also restrict the data from WoS to items with publication years between 2014 and 2016 and `article type` `article` or `review` in this analysis . -->
-
-
-## Matching criteria
-
-A number of features may be appropriate for matching articles between bibliographic databases <!-- reference?! -->. In the best case scenario, persistent identifiers such as DOIs can be used for direct matching. In the cases where persistent identifiers are missing, other characteristics of an article and its authorship may be used for matching, such as the article title, journal title or ISSN, or author names. However, none of these features are 100 % unique (e.g. articles can share titles, or authors can share names) and thus using them in isolation may lead to unreliable matches. A combination of these characteristics can produce more precise matching.
-
-In this report we focus on an initial subset of characteristics which may potentially be used for matching between WOS and Unpaywall, including article titles, ISSNs, author counts. These criteria were selected primarily due to data availability and coverage in both databases, but are not exhaustive and may be supplemented with further characteristics in future (e.g. page numbers). 
-
-Note that for the following sections, we refer to the cleaned and normalised datasets of WOS and Unpaywall documented in the previous section.
+Most items have the same publication year, 2014, in WoS as in the Unpaywall dataset. However, a non-negligible proportion of items have publication years one or two years later in WoS than in Unpaywall. Based on this, we recommend to focus try to match items in Unpaywall with items from Wos having the same publication year, or one or two years later.
 
 ### Article titles
 
@@ -206,43 +205,48 @@ Article titles are potentially a good candidate for matching due to their high c
 
 ```{r}
 
-# Should limit to Article and Review type documents?
+# Coverage of titles, and proportion of unique titles in WoS and Unpaywall
 
-wos_article_title_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_wos_coverage.sql")) %>% 
+article_title_wos_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_wos_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
-upw_article_title_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_upw_coverage.sql")) %>% 
+article_title_upw_coverage <- dbGetQuery(con, read_file("sql/criteria/article_title_upw_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
-wos_article_title_uniques <- dbGetQuery(con, read_file("sql/wos_article_title_uniques.sql")) %>% 
+article_title_wos_uniques <- dbGetQuery(con, read_file("sql/criteria/article_title_wos_uniques.sql")) %>% 
   pull(PCT_UNIQUE)
-upw_article_title_uniques <- dbGetQuery(con, read_file("sql/upw_article_title_uniques.sql")) %>% 
+article_title_upw_uniques <- dbGetQuery(con, read_file("sql/criteria/article_title_upw_uniques.sql")) %>% 
   pull(PCT_UNIQUE)
 
 ```
 
 `r wos_article_title_coverage` % of 'article' and 'review' type documents in WOS, and `r upw_article_title_coverage` % of 'journal-article' type documents in Unpaywall have a title. However, only `r wos_article_title_uniques` % of 'article' and 'review' titles in WOS are unique, compared to `r upw_article_title_uniques` of 'journal-articles' in Unpaywall, suggesting that direct matching of titles may lead to a high number of false-positive matches.
 
-To better understand the the potential for using article titles for matching articles without DOIs, we can consider inverse set of DOI-matched articles (i.e. as a 'gold standard'), and compare their title characteristics. We first check the percentage of DOI-matched articles that also have exactly matching titles:
+To better understand the the potential for using article titles for matching articles without DOIs, we can consider set of DOI-matched articles as a 'gold standard', and compare their title characteristics. We first check the percentage of DOI-matched articles that also have exactly matching titles:
 
 ```{r}
 
 # Calculate percentage of doi-matched articles with exactly matching titles
 
-doi_matches_exact_titles <- dbGetQuery(con, read_file("sql/doi_matches_exact_titles.sql")) %>%
+article_title_doi_matches_exact <- dbGetQuery(con, read_file("sql/criteria/article_title_doi_matches_exact.sql")) %>%
   pull(PCT_EXACT_TITLE_MATCHES)
 
 ```
 
-We find that only `r doi_matches_exact_titles` % <!-- ~ 76% --> of doi-matched articles have exactly matching titles. <!-- What are reasons for low percentage of exact title matches? Character encoding / handling of special characters? -->
+We find that only `r doi_matches_exact_titles` % of doi-matched articles have exactly matching titles. Reasons for this may be due to differences in character encoding, handling of special character, or sentence cases (i.e. upper vs lower-case) of titles processed by WoS and Unpaywall.
 
-An alternative to exact matching is to consider approximate string matching. Oracle provides two built-in functions as part of the `UTL_MATCH` package for approximate string matching: `EDIT_DISTANCE_SIMILARITY()` AND `JARO_WINKLER_SIMILARITY()`. Both functions provide a similarity score that is normalised such that 1 equates to perfect similarity and 0 to no similarity (or 100 % and 0 % when given as percentages, respectively). `EDIT_DISTANCE_SIMILARITY()` provides a similarity score based upon the [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) between two strings, which counts the number of edits (insertions, deletions, or substitutions) needed to convert one string to the other. `JARO_WINKLER_SIMILARITY()` provides a similarity score based on the [Jaro-Winkler distance](https://en.wikipedia.org/wiki/Jaro-Winkler_distance), which measures the number of characters in common and number of transpositions.
+An alternative to exact matching is to consider approximate string matching, which would allow titles to be matched even if they possessed minor differences in a small number of characters. Oracle provides two built-in functions as part of the `UTL_MATCH` package for approximate string matching: `EDIT_DISTANCE_SIMILARITY()` AND `JARO_WINKLER_SIMILARITY()`. Both functions provide a similarity score that is normalised such that 1 equates to perfect similarity and 0 to no similarity (or 100 % and 0 % when given as percentages, respectively). `EDIT_DISTANCE_SIMILARITY()` provides a similarity score based upon the [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) between two strings, which counts the number of edits (insertions, deletions, or substitutions) needed to convert one string to the other. `JARO_WINKLER_SIMILARITY()` provides a similarity score based on the [Jaro-Winkler distance](https://en.wikipedia.org/wiki/Jaro-Winkler_distance), which measures the number of characters in common and number of transpositions.
 
-Below we plot a histogram of showing the proportion of matching titles in our DOI-matched set, as a function of the two similarity measures. Note that for performance reasons, we use a small sample of the Unpaywall results set (~5%, using the Oracle `SAMPLE(5)` function):
+Below we plot a histogram of showing the proportion of matching titles in our DOI-matched set, as a function of the two similarity measures. To further improve the matching efficiency, we transform the title strings to lower case (using the Oracle `LOWER` function), and remove whitespace from the start and end of the string (using the Oracle `TRIM` function). Note that for performance reasons, we use a small sample of the Unpaywall results set (~1%, using the Oracle `SAMPLE(1)` function) for this initial testing phase:
 
 ```{r}
 
-#doi_matches_title_similarity <- dbGetQuery(con, read_file("sql/doi_matches_title_similarity.sql"))
+if(file.exists("data/criteria/article_title_doi_matches_similarity.csv")){
+  article_title_doi_matches_similarity <- read_csv("data/criteria/article_title_doi_matches_similarity.csv")
+} else {
+  article_title_doi_matches_similarity <- dbGetQuery(con, read_file("sql/criteria/article_title_doi_matches_similarity.sql"))
+  write_csv(article_title_doi_matches_similarity, "data/criteria/article_title_doi_matches_similarity.csv")
+}
 
-doi_matches_title_similarity %>%
+article_title_doi_matches_similarity %>%
   select(EDIT_DISTANCE_SIMILARITY, JARO_WINKLER_SIMILARITY) %>%
   gather("EDIT_DISTANCE_SIMILARITY", "JARO_WINKLER_SIMILARITY", 
          key="method", 
@@ -252,7 +256,7 @@ doi_matches_title_similarity %>%
   mutate(freq = n/sum(n)) %>%
   ggplot(aes(x=similarity, y=freq, fill=method, color=method)) +
   geom_bar(stat="identity") +
-  labs(y="Percentage Matched", x="Title Similarity") +
+  labs(y="Percentage of Articles Matched", x="Title Similarity") +
   theme_bw() +
   theme(legend.position = "none") +
   scale_y_continuous(breaks=seq(from=0, to=1, by=0.1), labels=scales::percent) +
@@ -261,15 +265,20 @@ doi_matches_title_similarity %>%
 
 ```
 
-These plots show that `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` have similar distributions of similarity scores for titles on DOI-matched articles. A threshold appears to exist at approximately 90 % similarity<!-- or 80%? It depends how much you zoom in on the y-axis... -->, below which very few titles are matched, potentially indicating a suitable threshold below which title similarities should be considered unreliable.
+These plots show that `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` have similar distributions of similarity scores for titles on DOI-matched articles. Both distributions show that titles are consistently matched with similarities > 80 % (with a small percentage of outliers), suggesting this as a suitable threshold below which matched titles should be considered unreliable.
 
 An additional method to assess the efficacy of the different similarity matching methods is to assess matching similarity on randomly matched articles, i.e. assuming that random titles should not be the same:
 
 ```{r}
 
-#random_matches_title_similarity <- dbGetQuery(con, read_file("sql/random_matches_title_similarity.sql"))
+if(file.exists("data/criteria/article_title_random_matches_similarity.csv")){
+  article_title_random_matches_similarity <- read_csv("data/criteria/article_title_random_matches_similarity.csv")
+} else {
+  article_title_random_matches_similarity <- dbGetQuery(con, read_file("sql/criteria/article_title_random_matches_similarity.sql"))
+  write_csv(article_title_random_matches_similarity, "data/criteria/article_title_random_matches_similarity.csv")
+}
 
-random_matches_title_similarity %>%
+article_title_random_matches_similarity %>%
  select(EDIT_DISTANCE_SIMILARITY, JARO_WINKLER_SIMILARITY) %>%
   gather("EDIT_DISTANCE_SIMILARITY", "JARO_WINKLER_SIMILARITY", 
          key="method", 
@@ -291,179 +300,176 @@ random_matches_title_similarity %>%
 
 These plots show that the `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` produce much lower similarity scores when used to compare random titles, than when comparing titles of doi-matched articles. These results suggest that matching via string similarity functions can be an effective method to increase the number of matches whilst retaining high precision. Notably, we can see different distribution patterns between the two similarity measures - it appears that `EDIT_DISTANCE_SIMILARITY()` produces much lower similarity scores (median = `r median(random_matches_title_similarity$EDIT_DISTANCE_SIMILARITY`) with less overlap with the distribution of DOI-matched articles, compared to `JARO_WINKLER_SIMILARITY()` (median = `r median(random_matches_title_similarity$JARO_WINKLER_SIMILARITY`).
 
-We can thus interpret that `EDIT_DISTANCE_SIMILARITY()` is a more appropriate measure for matching titles. For the remainder of this report we have thus implemented the `EDIT_DISTANCE_SIMILARITY()` function, with a similarity threshold of 80 %, for matching of article titles.
-
-<!-- We use a threshold of 80 %, which captures XX % of all doi-matched articles -->
+We can thus interpret that `EDIT_DISTANCE_SIMILARITY()` is a more appropriate measure for matching titles. For matching between datasets we thus recommend to implement the `EDIT_DISTANCE_SIMILARITY()` function, with a similarity threshold of 80 %, for matching of article titles.
 
 ### Article title length
 
-```{r}
+In the above section we match titles using Oracle built-in functions for title similarity. However, such string similarity algorithms are notoriously slow on large datasets, as they require a matrix of rows to be checked against every other row in the dataset (e.g. if we were to compare 10,000 Unpaywall records with 10,000 WoS records, we would need to perform 100,000,000 string similarity comparisons). A target for scaling such similarity functions is to reduce the number of pairwise comparisons between titles. One potential way to do this is by first considering differences in the title length, where titles with greatly differing lengths are unlikely to belong to the same record.
 
-# DOI-matched articles
-#doi_matches_title_length <- dbGetQuery(con, read_file("sql/doi_matches_title_length.sql"))
-
-doi_matches_title_length %>%
-  rename(COUNT = "COUNT(*)") %>%
-  ggplot(aes(x=DIFF, y=COUNT)) +
-  geom_bar(stat="identity") +
-  coord_cartesian(xlim=c(0,100))
-
-```
+First we compare the difference in title lengths of Unpaywall and WoS items in our DOI-matched dataset:
 
 ```{r}
 
-# Randomly matched articles
-#random_matches_title_length <- dbGetQuery(con, read_file("sql/random_matches_title_length.sql"))
+if(file.exists("data/criteria/article_title_doi_matches_length.csv")){
+  article_title_doi_matches_length <- read_csv("data/criteria/article_title_doi_matches_length.csv")
+} else {
+  article_title_doi_matches_length <- dbGetQuery(con, read_file("sql/criteria/article_title_doi_matches_length.sql"))
+  write_csv(article_title_doi_matches_length, "data/criteria/article_title_doi_matches_length.csv")
+}
 
-random_matches_title_length %>%
-  rename(COUNT = "COUNT(*)") %>%
-  ggplot(aes(x=DIFF, y=COUNT)) +
+article_title_doi_matches_length %>%
+  ggplot(aes(x=LENGTH_DIFFERENCE, y=N)) +
   geom_bar(stat="identity") +
-  coord_cartesian(xlim=c(0,100))
+  coord_cartesian(xlim=c(0,100)) +
+  labs(x="Difference in Title Length", y="Number of DOI Matches") +
+  theme_bw()
 
 ```
+
+From this, we can see that the vast majority of titles do not differ significantly in length: `r 100*(article_title_doi_matches_length %>% filter(LENGTH_DIFFERENCE <= 10) %>% tally(N) %>% pull(n)) /(article_title_doi_matches_length %>% tally(N) %>% pull(n))` % of titles differ by less than 10 characters in length.
+
+We can also compare the difference in title lengths for randomly matched article titles:
+
+```{r}
+
+if(file.exists("data/criteria/article_title_random_matches_length.csv")){
+  article_title_random_matches_length <- read_csv("data/criteria/article_title_random_matches_length.csv")
+} else {
+  article_title_random_matches_length <- dbGetQuery(con, read_file("sql/criteria/article_title_random_matches_length.sql"))
+  write_csv(article_title_random_matches_length, "data/criteria/article_title_random_matches_length.csv")
+}
+
+article_title_random_matches_length %>%
+  ggplot(aes(x=LENGTH_DIFFERENCE, y=N)) +
+  geom_bar(stat="identity") +
+  coord_cartesian(xlim=c(0,100)) +
+  labs(x="Difference in Title Length", y="Number of DOI Matches") +
+  theme_bw()
+
+```
+
+The results show that there exists a wide variability in the length of titles when randomly matched, thus, by only comparing titles with similar lengths, we could exclude a large number of pairwise similarity comparisons between article titles. For example, excluding articles with differences in title lengths over 10 characters, would exclude `r 100*(article_title_random_matches_length %>% filter(LENGTH_DIFFERENCE >= 10) %>% tally(N) %>% pull(n)) /(article_title_random_matches_length %>% tally(N) %>% pull(n))` % of the pairwise comparisons required, greatly improving performance.
 
 ### Article title blacklist/duplicates/something
 
-<!-- Take a sample, show that there are duplicate titles which should be excluded. Show why a keyword blacklist is necessary -->
+A secondary factor related to titles is that of potential duplicates, i.e. two distinct records that share the same title. In some cases, title names can be shared by a large number of items (e.g. "Letter to the Editor"):
 
+```{r}
+
+# Unpaywall duplicate titles
+if(file.exists("data/criteria/article_title_upw_duplicates.csv")){
+  article_title_upw_duplicates <- read_csv("data/criteria/article_title_upw_duplicates.csv")
+} else {
+  article_title_upw_duplicates <- dbGetQuery(con, read_file("sql/criteria/article_title_upw_duplicates.sql"))
+  write_csv(article_title_upw_duplicates, "data/criteria/article_title_upw_duplicates.csv")
+}
+
+# WoS duplicate titles
+if(file.exists("data/criteria/article_title_wos_duplicates.csv")){
+  article_title_wos_duplicates <- read_csv("data/criteria/article_title_wos_duplicates.csv")
+} else {
+  article_title_wos_duplicates <- dbGetQuery(con, read_file("sql/criteria/article_title_wos_duplicates.sql"))
+  write_csv(article_title_wos_duplicates, "data/criteria/article_title_wos_duplicates.csv")
+}
+
+article_title_upw_duplicates %>%
+  arrange(desc(N)) %>%
+  top_n(10) %>%
+  ggplot(aes(x=reorder(ARTICLE_TITLE, N), y=N)) +
+  geom_bar(stat="identity") +
+  coord_flip() +
+  theme_bw() +
+  labs(x="Number of articles", y="", title="Number of duplicate articles for common titles in Unpaywall (top 10)")
+
+article_title_wos_duplicates %>%
+  arrange(desc(N)) %>%
+  top_n(10) %>%
+  ggplot(aes(x=reorder(ARTICLE_TITLE, N), y=N)) +
+  geom_bar(stat="identity") +
+  coord_flip() +
+  theme_bw() +
+  labs(x="Number of articles", y="", title="Number of duplicate articles for common titles in WoS (top 10)")
+
+```
+
+Due to these duplicate titles which cannot be definitively matched via title matching methods, our recommendation is to remove all items with duplicate titles from our datasets, and only match where unique titles exists.
+
+During these title matching processes, we also noticed a number of examples where items might match due to high similarity of titles, when they represent related (but not the same) documents. For example, an article may have a corrigendum associated with it, with the title "Corrigendum: [original article title]". Clearly, these two records do not represent the same document, but may match due to the similarity between titles, and matching of other associated metadata (e.g. the corrigendum may be in the same journal and have the same authors as the original document).
+
+<!-- Need to add this - how did we generate manual list? -->
 
 ### Journal Titles 
 
-<!-- Coverage -->
+Journal titles present another possible facet for matching. First we check the coverage of journal titles in our Unpaywall and WoS data:
 
 ```{r}
 
-# Coverage of journal titles in WOS and Unpaywall
-
-wos_journal_coverage <- dbGetQuery(con, read_file("sql/wos_journal_coverage.sql")) %>% 
+journal_title_wos_coverage <- dbGetQuery(con, read_file("sql/criteria/journal_title_wos_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
-
-upw_journal_coverage <- dbGetQuery(con, read_file("sql/upw_journal_coverage.sql")) %>% 
+journal_title_upw_coverage <- dbGetQuery(con, read_file("sql/criteria/journal_title_upw_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
 
 ```
 
-<!-- Matching -->
+Our results show a high level of coverage, with `r journal_title_wos_coverage` % of items in WoS, and `r journal_title_upw_coverage` % of items in Unpaywall being associated with a journal title.
+
+We then check the percentage of articles that can be matched via DOIs, that also possess the exact same journal title. We apply the Oracle functions `LOWER` and `TRIM` to the journal titles before matching, to improve efficiency:
 
 ```{r}
-
-# Calculate percentage of doi-matched articles with exactly matching titles
-
-doi_matches_exact_journals <- dbGetQuery(con, read_file("sql/doi_matches_exact_journals.sql")) %>%
+journal_title_doi_matches_exact <- dbGetQuery(con, read_file("sql/criteria/journal_title_doi_matches_exact.sql")) %>%
   pull(PCT_EXACT_JOURNAL_MATCHES)
-
 ```
+
+Despite a high level of coverage of titles in both databases, only `r journal_title_doi_matches_exact` % of journal titles match exactly, for articles that can be matched together via DOIs. The reason for this is either minor changes in journal titles between datasets due to character encoding issues, or inconsistent reporting of journal titles between databases (e.g "PNAS" versus "Proceedings of the National Academy of Sciences").
 
 ### ISSNs
 
-<!-- Coverage -->
+Given the weakness of matching with journal titles alone, a potential altnernative is to match on the journal ISSN. As before, we first check the coverage of ISSNs within each dataset:
 
 ```{r}
 
-# Coverage of journal titles in WOS and Unpaywall
-
-wos_issn_coverage <- dbGetQuery(con, read_file("sql/wos_issn_coverage.sql")) %>% 
+issn_wos_coverage <- dbGetQuery(con, read_file("sql/criteria/issn_wos_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
-
-upw_issn_coverage <- dbGetQuery(con, read_file("sql/upw_issn_coverage.sql")) %>% 
+issn_upw_coverage <- dbGetQuery(con, read_file("sql/criteria/issn_upw_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
 
 ```
 
-<!-- Matching. Note Unpaywall ISSNs are separated in another table - maybe need to document in preprocessing section -->
+Coverage of ISSNs in both databases is also high, with `r issn_wos_coverage` % of items in WoS, and `r issn_upw_coverage` $ of items in Unpaywall possessing ISSN information.
+
+We compare the percentage of DOI-matched items that have a matching ISSN. Note that some records in Unpaywall have multiple ISSNs associated with them <!-- Is it just for Unpaywall?? -->, whilst WoS records are only associated with a single ISSN. We thus match dependent on whether ANY of the ISSNs associated with an item in Unpaywall are the same as the ISSN for an item in WoS. Note that ISSNs in Unpaywall are parsed to a separate table (documented in the following section on data preprocessing):
 
 ```{r}
 
-# Calculate percentage of doi-matched articles with exactly matching ISSNS
-
-doi_matches_exact_issns <- dbGetQuery(con, read_file("sql/doi_matches_exact_issns.sql")) %>%
+issn_doi_matches_exact <- dbGetQuery(con, read_file("sql/criteria/issn_doi_matches_exact.sql")) %>%
   pull(PCT_EXACT_ISSN_MATCHES)
 
 ```
 
+We find that `r issn_doi_matches_exact` % of DOI-matched articles also have a matching ISSN, a higher rate than for journal titles alone. 
+
 ### Author counts
 
-<!-- Coverage -->
+The final feature that we investigate here as a potential matching option is for author counts, i.e. matched articles should have the same number of authors. Author count data is calculated within the KB database directly <!-- Should we check how this is calculated??? -->, whilst author counts for Unpaywall are calculate from the length of the "z_authors" field (see above section on "Data selection and acquistion"). First we check the coverage of author counts in both datasets:
 
 ```{r}
-
-wos_authorcount_coverage <- dbGetQuery(con, read_file("sql/wos_authorcount_coverage.sql")) %>% 
+authorcount_wos_coverage <- dbGetQuery(con, read_file("sql/criteria/authorcount_wos_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
-
-upw_authorcount_coverage <- dbGetQuery(con, read_file("sql/upw_authorcount_coverage.sql")) %>% 
+authorcount_upw_coverage <- dbGetQuery(con, read_file("sql/criteria/authorcount_upw_coverage.sql")) %>% 
   pull(PCT_COVERAGE)
 
 ```
 
-<!-- Matching -->
+We then check the number of DOI-matched articles that also have exactly matching number of authors:
 
 ```{r}
 
-doi_matches_exact_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_exact_authorcounts.sql")) %>%
+authorcount_doi_matches_exact <- dbGetQuery(con, read_file("sql/criteria/authorcount_doi_matches_exact.sql")) %>%
   pull(PCT_EXACT_AUTHORCOUNT_MATCHES)
 
 ```
 
-<!-- Graph showing difference in WoS and Unpaywall author counts-->
-
-```{r}
-
-doi_matches_authorcounts <- dbGetQuery(con, read_file("sql/doi_matches_all_authorcounts.sql"))
-
-doi_matches_authorcounts %>%
-  ggplot(aes(x=UNPAYWALL_AUTHORS, y=WOS_AUTHORS)) +
-  geom_tile(aes(fill=MATCHES)) +
-  labs(x="Unpaywall Author Count", y="WoS Author Count") +
-  scale_x_continuous(limits=c(0,100)) +
-  scale_y_continuous(limits=c(0,100)) +
-  scale_fill_viridis() +
-  theme_bw()
-
-doi_matches_authorcounts %>%
-  mutate(difference = UNPAYWALL_AUTHORS-WOS_AUTHORS) %>%
-  group_by(difference) %>%
-  summarize(sum_matches = sum(MATCHES)) %>%
-  filter(difference > -10, difference < 10) %>%
-  ggplot(aes(x=difference, y=sum_matches)) +
-  geom_bar(stat='identity')
-
-```
-
-### Author names
-
-<!-- Coverage -->
-
-```{r}
-
-
-# Need to check! This doesn't work - null values can be double counted.
-
-wos_first_author_name_coverage <- dbGetQuery(con, read_file("sql/wos_first_author_name_coverage.sql")) %>% 
-  pull(PCT_COVERAGE)
-
-wos_last_author_name_coverage <- dbGetQuery(con, read_file("sql/wos_last_author_name_coverage.sql")) %>% 
-  pull(PCT_COVERAGE)
-
-upw_first_author_name_coverage <- dbGetQuery(con, read_file("sql/upw_first_author_name_coverage.sql")) %>% 
-  pull(PCT_COVERAGE)
-
-upw_last_author_name_coverage <- dbGetQuery(con, read_file("sql/upw_last_author_name_coverage.sql")) %>% 
-  pull(PCT_COVERAGE)
-
-```
-
-<!-- Matching -->
-
-```{r}
-
-
-
-
-
-```
-
-
+`r issn_doi_matches_exact` % of articles that can be matched by DOIs also have matching numbers of authors. This high percentage means that we recommend to also use author counts as a matching feature.
 
 ## Data preprocessing
 
