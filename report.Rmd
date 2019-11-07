@@ -42,8 +42,12 @@ This report documents our approach to developing a procedure for the connection 
 The most straight-forward way to perform a matching between WoS and Unpwaywall is based on [digital object identifiers (doi)](https://www.doi.org/), i.e. persistent interoperable identifiers. However, doi information in WoS is incomplete: not for all records a doi is stored in the database even though many of them are actually included in Unpaywall.
 
 ```{r}
-wos_doi_cov <- dbGetQuery(con, read_file("sql/wos_doi_coverage.sql"))
-write_csv(wos_doi_cov, "data/wos_doi_coverage.csv")
+if(file.exists("data/wos_doi_coverage.csv")){
+  wos_doi_cov <- read_csv("data/wos_doi_coverage.csv")
+} else {
+  wos_doi_cov <- dbGetQuery(con, read_file("sql/motivation/wos_doi_coverage.sql"))
+  write_csv(wos_doi_cov, "data/wos_doi_coverage.csv")
+}
 wos_doi_cov_tidy <- wos_doi_cov %>%
   gather("is_null", "number_of_items", -TOTAL_NUMBER_OF_ITEMS, -ARTICLE_TYPE, -PUBYEAR) %>%
   mutate(is_null = case_when(
@@ -220,7 +224,7 @@ article_title_upw_uniques <- dbGetQuery(con, read_file("sql/criteria/article_tit
 
 `r wos_article_title_coverage` % of 'article' and 'review' type documents in WOS, and `r upw_article_title_coverage` % of 'journal-article' type documents in Unpaywall have a title. However, only `r wos_article_title_uniques` % of 'article' and 'review' titles in WOS are unique, compared to `r upw_article_title_uniques` of 'journal-articles' in Unpaywall, suggesting that direct matching of titles may lead to a high number of false-positive matches.
 
-To better understand the the potential for using article titles for matching articles without DOIs, we can consider set of DOI-matched articles as a 'gold standard', and compare their title characteristics. We first check the percentage of DOI-matched articles that also have exactly matching titles:
+To better understand the the potential for using article titles for matching articles without DOIs, we can consider the set of DOI-matched articles as a 'gold standard', and compare their title characteristics. We first check the percentage of DOI-matched articles that also have exactly matching titles:
 
 ```{r}
 
@@ -535,15 +539,63 @@ Then, we classify as matched articles the ones which have a title similarity (ed
 
 This results in the query stored as [create_upw14_wos_matching_results.sql](create_upw14_wos_matching_results.sql) to obtain a list of matchings.
 
-To evaluate the performance of our matching algorithm, we also run the matching algorithm on the two matching tables without using any DOI information (see the query [create_upw_14_wos_matching_results_eval.sql](create_upw_14_wos_matching_results_eval.sql)).
+To evaluate the performance of our matching algorithm, we also run the matching algorithm on the two matching tables without using any DOI information (see the query [create_upw_14_wos_matching_res_eval.sql](create_upw_14_wos_matching_res_eval.sql)).
 
 ## Results
 
+```{r}
+#doi_matches <- dbGetQuery(con, read_file("sql/results/gather_matching_results.sql"))
+doi_matches_aggr <- dbGetQuery(con, read_file("sql/results/gather_matching_results_aggr.sql"))
+```
+Using the above described algorithm, a total of `r doi_matches_aggr$TOTAL_MATCHES` matched records were obtained. `r doi_matches_aggr$DOI_MATCHES` were matched by DOI, corresponding to `r round(doi_matches_aggr$DOI_MATCHES/doi_matches_aggr$TOTAL_MATCHES * 100, 2)` %. Of the remaining `r doi_matches_aggr$TOTAL_MATCHES - doi_matches_aggr$DOI_MATCHES` matches, for `r doi_matches_aggr$WOS_NULLS`, DOI was missing in WoS and `r doi_matches_aggr$DIFF_DOIS` had differing DOIs.
+
+<!-- add figure?-->
+<!--how to compare to number of wos  records? just 14 and 14?-->
+
+Some articles in Unpaywall were matched with multiple WoS records. A superficial check of these records reveiled that for some of them, the same DOI was registered with differing items key and title in WoS. For others, the titles were almost identical with just one word or number changed (like, for example, part 1 and part 2). They mostly appeared in the same journal with identical author count and were thus not recognized as different articles by the algorithm. The following figure shows the frequency of duplicates.
+
+```{r}
+doi_duplicates <- dbGetQuery(con, read_file("sql/results/gather_duplicates.sql"))
+doi_duplicates %>% 
+  ggplot(aes(x = N)) +
+    geom_histogram(binwidth = 1) +
+    labs(x = "Number of duplicates", y = "Number of articles", title = "How frequent are duplicate matches?")
+```
+
+
+### Evaluation of matching routine
+
+To evaluate how the matching algorithm performs we ran it on our normalized tables without, however, using the DOI field. We want to consider DOI matching as ground truth, that is we assume that records with coinciding DOI are referring to the same article and articles without a DOI match in the other dataset are only registered in one of the databases. Therefore, in the analysis, we will consider only articles that have DOI information also in WoS, since they could potentially be matched by DOI and exclude all articles with null DOI. 
+Comparing the number of articles that were matched by our algorithm with the ones matched by DOI, we can calculate precision and recall.
+
+```{r}
+n_matches_eval <- dbGetQuery(con, read_file("sql/results/gather_number_matches_eval.sql"))
+n_matches_doi <- dbGetQuery(con, read_file("sql/results/gather_number_matches_doi.sql"))
+```
+
+We find that using purely DOI, a total number of `r n_matches_doi$N` articles could be matched. Our algorithm found `r n_matches_eval$TOTAL_MATCHES` in total, of which `n_matches_eval$DOI_MATCHES` have coinciding DOIs. This corresponds to a recall of `r round(n_matches_eval$DOI_MATCHES/n_matches_doi$N*100, 2)` % and a precision of `r round(n_matches_eval$DOI_MATCHES/n_matches_eval$TOTAL_MATCHES*100, 2)` %. This means that even without using DOI information, almost 95 % percent of articles can be matched correctly with a mismatch-rate of less than 1 %.
+
+We additionally took a sample of 100 matched articles, which did not have any DOI information from WoS but were still identified with a corresponding article in Unpaywall. We manually checked all corresponding Unpaywall DOIs and found that all of them resolved to the correct article. It seems that at least for our sample the DOI was just not registered with WoS.
+
 ## Discussion and Recommendations
+discussion:
 
-### Runtime
+what to do with very similar titles? 
 
-Preprocessing the data to generate the normalized and cleaned up tables `upw_14_norm` and `wos_14_16_norm` takes several minutes each.
+instead of excluding records with duplicate title maybe choose one of them?
+
+include authornames?
+
+runtime several hours for one upw year, does it scale?
+
+used preimplemented author count in wos -> how reliable?
+
+recommendations:
+
+for recent years, if runtime is issue: just use doi
+
+if more is wanted: final criterion: title similarity. use other arguments to reduce number of titles that have to be compared
+
 
 # Bibliography
 
