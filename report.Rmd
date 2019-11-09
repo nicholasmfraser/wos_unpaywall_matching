@@ -21,6 +21,7 @@ library(RJDBC)
 library(DBI)
 library(dbplyr)
 library(viridis)
+library(scales)
 
 # Store also personal authentication credentials as kb_user01 and kb_password01 in .Renviron file.
 
@@ -32,10 +33,6 @@ con <- dbConnect(drv, "jdbc:oracle:thin:@//biblio-p-db01:1521/bibliodb01.fiz.kar
 ```
 
 ## Motivation
-
-<!-- There is a growing need to monitor open access to scholarly literature. Information on the open access status of research publications is desired to study the development of open availability over time, phenomena connected with open access, like a possible citation advantage, to observe compliance with funder mandates and to inform decision making, be it on institutional level or in science policy.
-
-Yet, gathering information on the open access status often is not a trivial task.-->
 
 This report documents our approach to developing a procedure for the connection of items covered by the Web of Science (WoS) in-house database of the Competence Center for bibliometrics (KB) to information on their open access status contained in the Unpaywall data dump.
 
@@ -94,16 +91,16 @@ wos_doi_cov_tidy %>%
     coord_flip() +
     labs(x = "Article type", y = "Number of items", title = "Total number of items per article type")
 
-wos_doi_cov_tidy %>%
-  group_by(ARTICLE_TYPE) %>%
-  summarise(n = sum(number_of_items)) %>%
-  arrange(desc(n)) %>%
-  mutate(ARTICLE_TYPE = as_factor(ARTICLE_TYPE)) %>%
-  ggplot(aes(ARTICLE_TYPE, n)) +
-    geom_bar(stat = "identity") +
-    scale_y_log10() +
-    coord_flip() +
-    labs(x = "Article type", y = "Number of items", title = "Total number of items per article type, logarithmic scale")
+# wos_doi_cov_tidy %>%
+#   group_by(ARTICLE_TYPE) %>%
+#   summarise(n = sum(number_of_items)) %>%
+#   arrange(desc(n)) %>%
+#   mutate(ARTICLE_TYPE = as_factor(ARTICLE_TYPE)) %>%
+#   ggplot(aes(ARTICLE_TYPE, n)) +
+#     geom_bar(stat = "identity") +
+#     scale_y_log10() +
+#     coord_flip() +
+#     labs(x = "Article type", y = "Number of items", title = "Total number of items per article type, logarithmic scale")
 ```
 
 With this, we see the following behavior for the existence of a doi per article type.
@@ -441,7 +438,7 @@ issn_upw_coverage <- dbGetQuery(con, read_file("sql/criteria/issn_upw_coverage.s
 
 Coverage of ISSNs in both databases is also high, with `r issn_wos_coverage` % of items in WoS, and `r issn_upw_coverage` $ of items in Unpaywall possessing ISSN information.
 
-We compare the percentage of DOI-matched items that have a matching ISSN. Note that some records in Unpaywall have multiple ISSNs associated with them <!-- Is it just for Unpaywall?? -->, whilst WoS records are only associated with a single ISSN. We thus match dependent on whether ANY of the ISSNs associated with an item in Unpaywall are the same as the ISSN for an item in WoS. Note that ISSNs in Unpaywall are parsed to a separate table (documented in the following section on data preprocessing):
+We compare the percentage of DOI-matched items that have a matching ISSN. Note that some records in Unpaywall have multiple ISSNs associated with them, whilst WoS records are only associated with a single ISSN. We thus match dependent on whether ANY of the ISSNs associated with an item in Unpaywall are the same as the ISSN for an item in WoS. Note that ISSNs in Unpaywall are parsed to a separate table (documented in the following section on data preprocessing):
 
 ```{r}
 
@@ -485,10 +482,6 @@ DOIs: Converted to lowercase (Oracle `LOWER()` function) and trimmed leading and
 Article titles: Converted to lowercase and trimmed leading and trailing whitespace
 Journal titles: Converted to lowercase and trimmed leading and trailing whitespace
 
-<!-- not needed anymore?
-
-Author names: Author names were 'blocked' by concatenating the first initial of the first name, and the full last name (following the approach of e.g. Caron and Van Eck, 2014 #Ref list? , for large-scale author disambiguation). Author names were first converted to lowercase and leading and trailing whitespace was trimmed. A REGEX function was used to remove special characters from last names prior to concatenation (in Oracle: `REGEXP_REPLACE(NAME, '[^A-Za-z]','')`).-->
-
 As mentioned before, we restricted the analysis to document types `journal-article` (Unpaywall) or `article` and `review` (WoS). From the imported Unpaywall table, and the WoS-KB database, we retrieved the fields we found to be potentially usefull in the previous section, namely:
 
 - DOI
@@ -521,12 +514,7 @@ In order to speed up matching we created an index for the DOI column in both tab
 
 ## Matching algorithm
 
-<!--(Anne/Nick)
-Description of algorithm-->
-
 The first step of our matching routine is simply using DOIs where they exist and are present in both databases. The more interesting part is the matching of articles without DOI information based on the criteria discussed in the previous section. As mentioned before, we only consider `journal article`s from Unpaywall and `articles`s and `review`s from WoS. We only try to match articles where the publication year from WoS is the same as or up to two years after the one in Unpaywall. Since all Unpaywall articles we investigated in this analysis are from 2014, we perform the matching on WoS articles with publication year between 2014 and 2016.
-
-
 
 Since the comparison of titles to determine their similarity measure is costly, we try to narrow down the subset of possible matching candidates as far as possible using the following criteria:
 
@@ -543,14 +531,30 @@ To evaluate the performance of our matching algorithm, we also run the matching 
 
 ## Results
 
+<!--how to compare total number of mtaches to number of articles to be matched? esp. how to compare to wos records? just 2014 wos and 2014 matched?-->
+
 ```{r}
 #doi_matches <- dbGetQuery(con, read_file("sql/results/gather_matching_results.sql"))
-doi_matches_aggr <- dbGetQuery(con, read_file("sql/results/gather_matching_results_aggr.sql"))
+if(file.exists("data/results/doi_matches_aggr.csv")){
+  doi_matches_aggr <- read_csv("data/results/doi_matches_aggr.csv")
+} else {
+  doi_matches_aggr <- dbGetQuery(con, read_file("sql/results/gather_matching_results_aggr.sql"))
+  write_csv(doi_matches_aggr, "data/results/doi_matches_aggr.csv")
+}
 ```
-Using the above described algorithm, a total of `r doi_matches_aggr$TOTAL_MATCHES` matched records were obtained. `r doi_matches_aggr$DOI_MATCHES` were matched by DOI, corresponding to `r round(doi_matches_aggr$DOI_MATCHES/doi_matches_aggr$TOTAL_MATCHES * 100, 2)` %. Of the remaining `r doi_matches_aggr$TOTAL_MATCHES - doi_matches_aggr$DOI_MATCHES` matches, for `r doi_matches_aggr$WOS_NULLS`, DOI was missing in WoS and `r doi_matches_aggr$DIFF_DOIS` had differing DOIs.
 
-<!-- add figure?-->
-<!--how to compare to number of wos  records? just 14 and 14?-->
+Using the above described algorithm, a total of `r doi_matches_aggr$TOTAL_MATCHES` matched records were obtained. `r doi_matches_aggr$DOI_MATCHES` were matched by DOI, corresponding to `r round(doi_matches_aggr$DOI_MATCHES/doi_matches_aggr$TOTAL_MATCHES * 100, 2)` %. Of the remaining `r doi_matches_aggr$TOTAL_MATCHES - doi_matches_aggr$DOI_MATCHES` matches, for `r doi_matches_aggr$WOS_NULLS`, DOI was missing in WoS and `r doi_matches_aggr$DIFF_DOIS` had differing DOIs. The following figure illustrates these numbers:
+
+```{r}
+doi_matches_aggr %>% 
+  gather(key = "doi_is_matching", value = "number_of_matches", -TOTAL_MATCHES) %>% 
+  mutate(doi_is_matching = factor(doi_is_matching, levels = c("DOI_MATCHES", "WOS_NULLS", "DIFF_DOIS"))) %>% 
+  mutate(doi_is_matching = fct_recode(doi_is_matching, "matching DOIs"= "DOI_MATCHES", "WoS DOI is null" = "WOS_NULLS", "differing DOIs" = "DIFF_DOIS")) %>% 
+  ggplot(aes(x = doi_is_matching, y = number_of_matches)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = comma) +
+  labs(x = "", y = "Number of matches", title = "Are DOIs of matched records the same?")
+```
 
 Some articles in Unpaywall were matched with multiple WoS records. A superficial check of these records reveiled that for some of them, the same DOI was registered with differing items key and title in WoS. For others, the titles were almost identical with just one word or number changed (like, for example, part 1 and part 2). They mostly appeared in the same journal with identical author count and were thus not recognized as different articles by the algorithm. The following figure shows the frequency of duplicates.
 
@@ -562,39 +566,58 @@ doi_duplicates %>%
     labs(x = "Number of duplicates", y = "Number of articles", title = "How frequent are duplicate matches?")
 ```
 
+We additionally took a sample of 100 matched articles, which did not have any DOI information from WoS but were still identified with a corresponding article in Unpaywall. We manually checked all corresponding Unpaywall DOIs and found that all of them resolved to the correct article. It seems that at least for our sample the DOI was just not registered with WoS.
+
+<!--In a second approach, we ran the matching algorithm on our normalized tables without, however, using the DOI field. The following figure shows a comparison of the number of matched records from the two approaches, using DOI information or not, and highlights which of them have identical DOIs, differing DOIs or no DOI in WoS.
+
+```{r}
+if(file.exists("data/results/doi_matches_eval_aggr.csv")){
+  doi_matches_eval_aggr <- read_csv("data/results/doi_matches_eval_aggr.csv")
+} else {
+  doi_matches_eval_aggr <- dbGetQuery(con, read_file("sql/results/gather_matching_results_eval_aggr.sql"))
+  write_csv(doi_matches_eval_aggr, "data/results/doi_matches_eval_aggr.csv")
+}
+```
+
+```{r}
+doi_matches_compare_plot 
+```
+-->
 
 ### Evaluation of matching routine
 
-To evaluate how the matching algorithm performs we ran it on our normalized tables without, however, using the DOI field. We want to consider DOI matching as ground truth, that is we assume that records with coinciding DOI are referring to the same article and articles without a DOI match in the other dataset are only registered in one of the databases. Therefore, in the analysis, we will consider only articles that have DOI information also in WoS, since they could potentially be matched by DOI and exclude all articles with null DOI. 
-Comparing the number of articles that were matched by our algorithm with the ones matched by DOI, we can calculate precision and recall.
+To evaluate the performance of our matching algorithm we want to consider DOI matching as ground truth, that is we assume that records with coinciding DOI are referring to the same article and articles without a DOI match in the other dataset are only registered in one of the databases. Therefore, in the analysis, we will consider only articles that have DOI information also in WoS, since they could potentially be matched by DOI and exclude all articles with null DOI. 
+
+Comparing the number of articles that were matched by our algorithm in the second approach with the ones matched by DOI, we can calculate precision and recall. We use distinct counting here, we assume multiple records with the same DOI to be rather a problem of duplicate database entries than of incorrect matching.
 
 ```{r}
 n_matches_eval <- dbGetQuery(con, read_file("sql/results/gather_number_matches_eval.sql"))
 n_matches_doi <- dbGetQuery(con, read_file("sql/results/gather_number_matches_doi.sql"))
 ```
 
-We find that using purely DOI, a total number of `r n_matches_doi$N` articles could be matched. Our algorithm found `r n_matches_eval$TOTAL_MATCHES` in total, of which `n_matches_eval$DOI_MATCHES` have coinciding DOIs. This corresponds to a recall of `r round(n_matches_eval$DOI_MATCHES/n_matches_doi$N*100, 2)` % and a precision of `r round(n_matches_eval$DOI_MATCHES/n_matches_eval$TOTAL_MATCHES*100, 2)` %. This means that even without using DOI information, almost 95 % percent of articles can be matched correctly with a mismatch-rate of less than 1 %.
+We find that using purely DOI, a total number of `r n_matches_doi$N` articles could be matched. Our algorithm found `r n_matches_eval$TOTAL_MATCHES` in total, of which `n_matches_eval$DOI_MATCHES` have coinciding DOIs. This corresponds to a recall of `r round(n_matches_eval$DOI_MATCHES/n_matches_doi$N*100, 2)` % and a precision of `r round(n_matches_eval$DOI_MATCHES/n_matches_eval$TOTAL_MATCHES*100, 2)` %. This means that even without using DOI information, almost 95 % percent of articles that could be matched by DOI can be matched correctly at a mismatch-rate of less than 1 %.
 
-We additionally took a sample of 100 matched articles, which did not have any DOI information from WoS but were still identified with a corresponding article in Unpaywall. We manually checked all corresponding Unpaywall DOIs and found that all of them resolved to the correct article. It seems that at least for our sample the DOI was just not registered with WoS.
+<!-- figure?-->
 
 ## Discussion and Recommendations
-discussion:
 
-what to do with very similar titles? 
+In general, the results are quite promising. The algorithm is able to retrieve a large number of records even without using DOI information. For the more recent years with a better DOI coverage, it still finds additional matches for the entries with missing DOI. The amount of mismatches is quite low. However, there are some critical points that need to be considered and addressed in some way for an implementation of the algorithm for the purposes of the KB.
 
-instead of excluding records with duplicate title maybe choose one of them?
+Firstly, the proposed algorithm can not distinguish well between articles with very similar titles published in the same journal and year with the same authorcount. For example, titles that only differ in a number (part 1, part 2, and so on) or a year or a single word are typically matched, leading to several uncorrect additional matches. Since the number of these occurances is quite low, we decided not to take further steps to exclude them. It might be possible to reduce the number of mismatches further by using more matching criteria, like authornames or to choose a very high threshold for the title similarity at the risk of loosing some other matches.
 
-include authornames?
+A second point to consider is that we decided to exclude all records that do not have unique titles in the preprocessing step. This might be too restrictive. Excluding only articles that coincide in the title and all other matching criteria will likely lead to an even higher number of matched articles. Alternatively, instead of excluding duplicate entries, one of them could be chosen.
 
-runtime several hours for one upw year, does it scale?
+In our algorithm, we require exactly matching authorcounts. For the Unpaywall dataset we caculated the authorcount ourselves from the nested field that lists all authors. For the WoS, however, we used the preimplemented authorcount from the items table without running any tests how reliable this number is (apart from comparing authorcounts with the ones from Unpwaywall for the DOI-matched records). Calculating the authorcounts from the available author information might yield better results.
 
-used preimplemented author count in wos -> how reliable?
+Running the matching algorithm (without using DOI information) took little over 4 hours on the scriptserver. When using also DOI information, it is slightly faster, but also takes several hours to complete. For this report we only considered one year of Unpaywall records and three years of WoS records. Since the matching algorithm uses a restriction on certain publication years, we expect the runtime to scale more or less linearly if more publication years are included. Depending on the study one wants to conduct and the amount of data that should be included, this might not be feasible. Hence, for a single study, that focuses on more recent years, matching articles purely based on doi might be the best option.
 
-recommendations:
+To obtain more matches, especially for years before 2000, where the DOI coverage is unsatisfying, it might be advised to implement a more sophisticated algorithm. In our case the final matching criterion was a high title similarity. We use several other arguments to reduce the number of titles that have to be compared, since that is the most costly step in terms of run time. We found the following steps to be helpful:
+ - Publication year: Compare Unpaywall entries to WoS entries with the same publication year or up to two years later
+ - Journal: Compare articles with exactly the same journal title or matching ISSN
+ - Authorcount: We allowed only exactly matching authorcounts.
+ - Title length: We allowed for title lengths to differ up to 10 characters but not more.
 
-for recent years, if runtime is issue: just use doi
-
-if more is wanted: final criterion: title similarity. use other arguments to reduce number of titles that have to be compared
+For the integration of open access information into the KB infrastructure, a matching would most likely not have to be performed by each user individually, but could be done once after every upload of a new Unpaywall dump. Hence, an algorithm based on the one we developed for this report could be implemented to create a matching table, which then could be used for individual analyses.
 
 
 # Bibliography
