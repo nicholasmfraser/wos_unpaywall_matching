@@ -1,19 +1,21 @@
 ---
 title: "Report on Matching of Unpaywall and Web of Science"
-authors:
-  - "Nicholas Fraser"
-  - "Anne Hobert"
 output:
+  pdf_document: default
   html_document:
-    keep_md: TRUE
-    fig_caption: TRUE
+    fig_caption: yes
+    keep_md: yes
+authors:
+- Nicholas Fraser
+- Anne Hobert
 ---
-## Initial setup
 
 ```{r setup, include=FALSE}
 
 # knitr options
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      options(scipen=999))
 
 # Call libraries
 library(tidyverse)
@@ -36,7 +38,7 @@ con <- dbConnect(drv, "jdbc:oracle:thin:@//biblio-p-db01:1521/bibliodb01.fiz.kar
 
 This report documents our approach to developing a procedure for the connection of items covered by the Web of Science (WoS) in-house database of the Competence Center for bibliometrics (KB) to information on their open access status contained in the Unpaywall data dump.
 
-The most straight-forward way to perform a matching between WoS and Unpwaywall is based on [digital object identifiers (doi)](https://www.doi.org/), i.e. persistent interoperable identifiers. However, doi information in WoS is incomplete: not for all records a doi is stored in the database even though many of them are actually included in Unpaywall.
+The most straight-forward way to perform a matching between WoS and Unpwaywall is based on [digital object identifiers (DOI)](https://www.doi.org/), i.e. persistent interoperable identifiers. However, DOI information in WoS is incomplete: not for all records a DOI is stored in the database even though many of them are actually included in Unpaywall.
 
 ```{r}
 if(file.exists("data/wos_doi_coverage.csv")){
@@ -62,7 +64,7 @@ wos_doi_cov_tidy %>%
     labs(x = "Publication year", y = "Number of items", fill = "DOI is null?",
          title = "What number of items have null-DOI in WoS?")
 ```
-Looking at all `r wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n` items in the WoS-KB bibliometric database (`wos_b_2019`) we see that only `r wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` of them contain DOI information, corresponding to `r round((wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %.  The figure reveals that almost all of the items in WoS with a publication year before 2000 are missing any DOI information. Indeed, of `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n` items older than 2000 in total, only `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` contain DOI information, corresponding to about `r round((wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %. In more recent years, the number of items including DOI information rises continuously. The coverage is much better here, with `r round((wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of items published from 2000 onwards having DOI information. The decline in the number of items with and without doi in the last years is probably due to an indexing lag.
+Looking at all `r wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n` items in the WoS-KB bibliometric database (`wos_b_2019`) we see that only `r wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` of them contain DOI information, corresponding to `r round((wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %.  The figure reveals that almost all of the items in WoS with a publication year before 2000 are missing any DOI information. Indeed, of `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n` items older than 2000 in total, only `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` contain DOI information, corresponding to about `r round((wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %. In more recent years, the number of items including DOI information rises continuously. The coverage is much better here, with `r round((wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of items published from 2000 onwards having DOI information. The decline in the number of items with and without DOI in the last years is probably due to an indexing lag.
 
 ```{r}
 # Number of null DOIs within articles and reviews per year
@@ -78,7 +80,7 @@ wos_doi_cov_tidy %>%
 
 The observed trend is similar if we focus on the document types journal articles and reviews only. Overall, `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review")) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of all articles and reviews contain DOI information. Again, the percentage is extremely low for publication years before 2000 (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %), and higher for recent years (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %). Moreover, for these document types, we observe that the number of items missing DOI information decreases continuously from 2000 onwards, leading to a coverage of `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % in 2017.
 
-We now want to investigate more thoroughly how the proportion of items without doi depends on the article type. In order to keep the figures readable, we first identify the most common article types and collate the remaining ones in the category `Other`. Looking at the number of items per article type in the following figures, we decide to keep all types with more than `100,000` items.
+We now want to investigate more thoroughly how the proportion of items without DOI depends on the article type. In order to keep the figures readable, we first identify the most common article types and collate the remaining ones in the category `Other`. Looking at the number of items per article type in the following figures, we decide to keep all types with more than `100,000` items.
 
 ```{r}
 wos_doi_cov_tidy %>%
@@ -103,7 +105,7 @@ wos_doi_cov_tidy %>%
 #     labs(x = "Article type", y = "Number of items", title = "Total number of items per article type, logarithmic scale")
 ```
 
-With this, we see the following behavior for the existence of a doi per article type.
+With this, we see the following behavior for the existence of a DOI per article type.
 
 ```{r}
 # Number of null DOIs per article type
@@ -140,7 +142,7 @@ We obtained our set of Unpaywall articles similarly to how it is described in ou
 
 First, we downloaded the most recent Unpaywall data dump released in April 2019 from [here](https://s3-us-west-2.amazonaws.com/unpaywall-data-snapshots/) and imported it into a local MongoDB database. The snapshot contains more than 100 million records and hence, the file is about 100 GB large. To obtain a more manageable object to work with, we extracted the fields which are most relevant to our matching objective using the following query:
 
-```{bash}
+```{bash, eval = FALSE, echo = TRUE}
 "C:\Program Files\MongoDB\Server\4.0\bin\mongo.exe"
 db.unpaywallApr19.aggregate([
    {
@@ -165,13 +167,13 @@ db.unpaywallApr19.aggregate([
 ] )
 ```
 
-Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need to be exchanged. We initially filtered for publication years between 2014 and 2016, extracted doi, publication year, article type (`genre`), article title, and some author information, namely the number of authors, and the given and family names of the first and last author. For single author articles, the first and last author coincide. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (paid service, access protected), specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported the one corresponding to the publication year 2014 into the oracle environment of the KB.
+Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need to be exchanged. We initially filtered for publication years between 2014 and 2016, extracted DOI, publication year, article type (`genre`), article title, and some author information, namely the number of authors, and the given and family names of the first and last author. For single author articles, the first and last author coincide. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (an access protected paid service), specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported the one corresponding to the publication year 2014 into the oracle environment of the KB.
 
 ## Matching criteria
 
 A number of features may be appropriate for matching articles between bibliographic databases <!-- reference?! -->. In the best case scenario, persistent identifiers such as DOIs can be used for direct matching. In the cases where persistent identifiers are missing, other characteristics of an article and its authorship may be used for matching, such as the article title, journal title or ISSNs. However, none of these features are 100 % unique (e.g. articles can share titles, or authors can share names) and thus using them in isolation may lead to unreliable matches. A combination of these characteristics can produce more precise matching.
 
-In this report we focus on an initial subset of characteristics which may potentially be used for matching between WOS and Unpaywall, including publication years, article titles, ISSNs, and author counts. These criteria were selected primarily due to data availability and coverage in both databases, but are not exhaustive and may be supplemented with further characteristics in future (e.g. page numbers). 
+In this report we focus on an initial subset of characteristics which may potentially be used for matching between WoS and Unpaywall, including publication years, article titles, ISSNs, and author counts. These criteria were selected primarily due to data availability and coverage in both databases, but are not exhaustive and may be supplemented with further characteristics in future (e.g. page numbers). 
 
 A description of the selected matching criteria follows. Note that for the following sections, items in WoS are limited only to 'article' and 'review' document types, and Unpaywall items to 'journal-article' types.
 
@@ -198,7 +200,7 @@ publication_years_doi_matches %>%
 
 ```
 
-Most items have the same publication year, 2014, in WoS as in the Unpaywall dataset. However, a non-negligible proportion of items have publication years one or two years later in WoS than in Unpaywall. Based on this, we recommend to focus try to match items in Unpaywall with items from Wos having the same publication year, or one or two years later.
+Most items have the same publication year, 2014, in WoS as in the Unpaywall dataset. However, a non-negligible proportion of items have publication years one or two years later in WoS than in Unpaywall. Based on this, we recommend to focus try to match items in Unpaywall with items from WoS having the same publication year, or one or two years later.
 
 ### Article titles
 
@@ -219,7 +221,7 @@ article_title_upw_uniques <- dbGetQuery(con, read_file("sql/criteria/article_tit
 
 ```
 
-`r wos_article_title_coverage` % of 'article' and 'review' type documents in WOS, and `r upw_article_title_coverage` % of 'journal-article' type documents in Unpaywall have a title. However, only `r wos_article_title_uniques` % of 'article' and 'review' titles in WOS are unique, compared to `r upw_article_title_uniques` of 'journal-articles' in Unpaywall, suggesting that direct matching of titles may lead to a high number of false-positive matches.
+`r article_title_wos_coverage` % of 'article' and 'review' type documents in WoS, and `r article_title_upw_coverage` % of 'journal-article' type documents in Unpaywall have a title. However, only `r article_title_wos_uniques` % of 'article' and 'review' titles in WoS are unique, compared to `r article_title_upw_uniques` of 'journal-articles' in Unpaywall, suggesting that direct matching of titles may lead to a high number of false-positive matches.
 
 To better understand the the potential for using article titles for matching articles without DOIs, we can consider the set of DOI-matched articles as a 'gold standard', and compare their title characteristics. We first check the percentage of DOI-matched articles that also have exactly matching titles:
 
@@ -232,7 +234,7 @@ article_title_doi_matches_exact <- dbGetQuery(con, read_file("sql/criteria/artic
 
 ```
 
-We find that only `r doi_matches_exact_titles` % of doi-matched articles have exactly matching titles. Reasons for this may be due to differences in character encoding, handling of special character, or sentence cases (i.e. upper vs lower-case) of titles processed by WoS and Unpaywall.
+We find that only `r article_title_doi_matches_exact` % of doi-matched articles have exactly matching titles. Reasons for this may be due to differences in character encoding, handling of special character, or sentence cases (i.e. upper vs lower-case) of titles processed by WoS and Unpaywall.
 
 An alternative to exact matching is to consider approximate string matching, which would allow titles to be matched even if they possessed minor differences in a small number of characters. Oracle provides two built-in functions as part of the `UTL_MATCH` package for approximate string matching: `EDIT_DISTANCE_SIMILARITY()` AND `JARO_WINKLER_SIMILARITY()`. Both functions provide a similarity score that is normalised such that 1 equates to perfect similarity and 0 to no similarity (or 100 % and 0 % when given as percentages, respectively). `EDIT_DISTANCE_SIMILARITY()` provides a similarity score based upon the [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) between two strings, which counts the number of edits (insertions, deletions, or substitutions) needed to convert one string to the other. `JARO_WINKLER_SIMILARITY()` provides a similarity score based on the [Jaro-Winkler distance](https://en.wikipedia.org/wiki/Jaro-Winkler_distance), which measures the number of characters in common and number of transpositions.
 
@@ -299,7 +301,7 @@ article_title_random_matches_similarity %>%
 
 ```
 
-These plots show that the `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` produce much lower similarity scores when used to compare random titles, than when comparing titles of doi-matched articles. These results suggest that matching via string similarity functions can be an effective method to increase the number of matches whilst retaining high precision. Notably, we can see different distribution patterns between the two similarity measures - it appears that `EDIT_DISTANCE_SIMILARITY()` produces much lower similarity scores (median = `r median(random_matches_title_similarity$EDIT_DISTANCE_SIMILARITY`) with less overlap with the distribution of DOI-matched articles, compared to `JARO_WINKLER_SIMILARITY()` (median = `r median(random_matches_title_similarity$JARO_WINKLER_SIMILARITY`).
+These plots show that the `EDIT_DISTANCE_SIMILARITY()` and `JARO_WINKLER_SIMILARITY()` produce much lower similarity scores when used to compare random titles, than when comparing titles of doi-matched articles. These results suggest that matching via string similarity functions can be an effective method to increase the number of matches whilst retaining high precision. Notably, we can see different distribution patterns between the two similarity measures - it appears that `EDIT_DISTANCE_SIMILARITY()` produces much lower similarity scores (median = `r median(article_title_random_matches_similarity$EDIT_DISTANCE_SIMILARITY)`) with less overlap with the distribution of DOI-matched articles, compared to `JARO_WINKLER_SIMILARITY()` (median = `r median(article_title_random_matches_similarity$JARO_WINKLER_SIMILARITY)`).
 
 We can thus interpret that `EDIT_DISTANCE_SIMILARITY()` is a more appropriate measure for matching titles. For matching between datasets we thus recommend to implement the `EDIT_DISTANCE_SIMILARITY()` function, with a similarity threshold of 80 %, for matching of article titles.
 
@@ -351,7 +353,7 @@ article_title_random_matches_length %>%
 
 The results show that there exists a wide variability in the length of titles when randomly matched, thus, by only comparing titles with similar lengths, we could exclude a large number of pairwise similarity comparisons between article titles. For example, excluding articles with differences in title lengths over 10 characters, would exclude `r 100*(article_title_random_matches_length %>% filter(LENGTH_DIFFERENCE >= 10) %>% tally(N) %>% pull(n)) /(article_title_random_matches_length %>% tally(N) %>% pull(n))` % of the pairwise comparisons required, greatly improving performance.
 
-### Article title blacklist/duplicates/something
+### Article title duplicates
 
 A secondary factor related to titles is that of potential duplicates, i.e. two distinct records that share the same title. In some cases, title names can be shared by a large number of items (e.g. "Letter to the Editor"):
 
@@ -380,7 +382,7 @@ article_title_upw_duplicates %>%
   geom_bar(stat="identity") +
   coord_flip() +
   theme_bw() +
-  labs(x="Number of articles", y="", title="Number of duplicate articles for common titles in Unpaywall (top 10)")
+  labs(x="Number of articles", y="", title="Number of duplicate articles for common titles in\n Unpaywall (top 10)")
 
 article_title_wos_duplicates %>%
   arrange(desc(N)) %>%
@@ -389,7 +391,8 @@ article_title_wos_duplicates %>%
   geom_bar(stat="identity") +
   coord_flip() +
   theme_bw() +
-  labs(x="Number of articles", y="", title="Number of duplicate articles for common titles in WoS (top 10)")
+  labs(x="Number of articles", y="", title="Number of duplicate articles for common titles in\n WoS (top 10)") +
+  scale_x_discrete( label = function(x) str_trunc(x, 30))
 
 ```
 
@@ -547,6 +550,7 @@ Using the above described algorithm, a total of `r doi_matches_aggr$TOTAL_MATCHE
 
 ```{r}
 doi_matches_aggr %>% 
+  select(TOTAL_MATCHES, DOI_MATCHES, WOS_NULLS, DIFF_DOIS) %>% 
   gather(key = "doi_is_matching", value = "number_of_matches", -TOTAL_MATCHES) %>% 
   mutate(doi_is_matching = factor(doi_is_matching, levels = c("DOI_MATCHES", "WOS_NULLS", "DIFF_DOIS"))) %>% 
   mutate(doi_is_matching = fct_recode(doi_is_matching, "matching DOIs"= "DOI_MATCHES", "WoS DOI is null" = "WOS_NULLS", "differing DOIs" = "DIFF_DOIS")) %>% 
@@ -579,7 +583,7 @@ if(file.exists("data/results/doi_matches_eval_aggr.csv")){
 }
 ```
 
-```{r}
+```{r, eval = FALSE}
 doi_matches_compare_plot 
 ```
 -->
@@ -617,8 +621,5 @@ To obtain more matches, especially for years before 2000, where the DOI coverage
  - Authorcount: We allowed only exactly matching authorcounts.
  - Title length: We allowed for title lengths to differ up to 10 characters but not more.
 
-For the integration of open access information into the KB infrastructure, a matching would most likely not have to be performed by each user individually, but could be done once after every upload of a new Unpaywall dump. Hence, an algorithm based on the one we developed for this report could be implemented to create a matching table, which then could be used for individual analyses.
-
-
-# Bibliography
+For the integration of open access information into the KB infrastructure, a matching would most likely not have to be performed by each user individually, but could be done once after every upload of a new Unpaywall dump. Hence, an algorithm based on the one we developed for this report could be implemented to create a matching 
 
