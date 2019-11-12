@@ -1,0 +1,24 @@
+"C:\Program Files\MongoDB\Server\4.0\bin\mongo.exe"
+db.unpaywallApr19.aggregate([
+   {
+      $match: {
+          year: { $gte: 2014, $lte: 2016}
+      }
+   },
+   {
+      $project: {
+          doi: 1,
+          year: 1,
+          genre: 1,
+          title: 1,
+          AuthorCount: { $cond: { if: { $isArray: "$z_authors" }, then: { $size: "$z_authors" }, else: null} },
+          AuthorFirst: { $cond: { if: { $isArray: "$z_authors" }, then: { $arrayElemAt: [ "$z_authors", 0 ] }, else: null } },
+          AuthorLast: { $cond: { if: { $isArray: "$z_authors" }, then: { $arrayElemAt: [ "$z_authors", -1 ] }, else: null } }
+      }
+   },
+   {
+      $out: 'authorInformation' 
+   }
+] )
+
+## Note that on a Linux or Mac OS, single quotes (`'`) and double quotes (`"`) need to be exchanged. 
