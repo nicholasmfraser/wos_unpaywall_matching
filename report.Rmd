@@ -103,7 +103,7 @@ wos_doi_cov_tidy %>%
   group_by(ARTICLE_TYPE) %>%
   summarise(n = sum(number_of_items)) %>%
   arrange(desc(n)) %>%
-  mutate(ARTICLE_TYPE = as_factor(ARTICLE_TYPE)) %>%
+  mutate(ARTICLE_TYPE = forcats::fct_rev(as_factor(ARTICLE_TYPE))) %>%
   ggplot(aes(ARTICLE_TYPE, n)) +
     geom_bar(stat = "identity") +
     coord_flip() +
@@ -140,7 +140,9 @@ wos_doi_cov_tidy %>%
   group_by(article_type_grouped, is_null) %>%
   summarise(number_of_items = sum(number_of_items)) %>%
   arrange(desc(number_of_items)) %>%
-  ggplot(aes(x = fct_relevel(fct_reorder(article_type_grouped, desc(number_of_items)), "Other", after = Inf), y = number_of_items)) + 
+  ungroup() %>% 
+  mutate(article_type_grouped = fct_reorder(article_type_grouped, desc(number_of_items))) %>%
+  ggplot(aes(x = forcats::fct_rev(fct_relevel(article_type_grouped, "Other", after = Inf)), y = number_of_items)) + 
     geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
     coord_flip() + 
     labs(x = "Publication year", y = "Number of items", fill = "DOI is null?",
