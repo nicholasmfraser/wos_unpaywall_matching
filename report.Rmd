@@ -76,7 +76,8 @@ wos_doi_cov_tidy %>%
   ggplot(aes(x = PUBYEAR, y = number_of_items)) + 
     geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
     labs(x = "Publication year", y = "Number of items", fill = "DOI is null?",
-         title = "How many items have a null-DOI in WoS?")+
+         title = "How many items have a null-DOI in WoS?") +
+  scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
   theme_bw()
 ```
 Looking at all `r wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n` items in the 2019 version of the WoS-KB bibliometric database (`wos_b_2019`) we see that only `r wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` of them contain DOI information, corresponding to `r round((wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %.  The figure reveals that almost all of the items in WoS with a publication year before 2000 are missing any DOI information. Indeed, of `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n` items older than 2000 in total, only `r wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n` contain DOI information, corresponding to about `r round((wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %. In more recent years, the number of items including DOI information has risen sharply. The coverage is much better here, with `r round((wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of items published from 2000 onwards having DOI information. The decline in the number of items with and without DOI in the most recent 3 years is probably due to an indexing lag.
@@ -90,11 +91,12 @@ wos_doi_cov_tidy %>%
   ggplot(aes(x = PUBYEAR, y = number_of_items)) + 
     geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
     labs(x = "Publication year", y = "Number of articles", fill = "DOI is null?",
-         title = "How many articles and reviews have null-DOI in WoS?")+
+         title = "How many articles and reviews have null-DOI in WoS?") +
+  scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
   theme_bw()
 ```
 
-The observed trend is similar if we focus on the document types journal 'articles' and 'reviews' only. Overall, `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review")) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of all articles and reviews contain DOI information. Again, the percentage is extremely low for publication years before 2000 (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %), and higher for recent years (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %). Moreover, for these document types, we observe that the number of items missing DOI information decreases continuously from 2000 onwards, leading to a coverage of `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % in 2017.
+The observed trend is similar if we focus on the document types journal 'articles' and 'reviews' only. Overall, `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review")) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % of all articles and reviews contain DOI information. Again, the percentage is extremely low for publication years before 2000 (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR < 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %), and higher for recent years (`r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %). Moreover, for these document types, we observe that the number of items <!-- with--> missing DOI information decreases continuously from 2000 onwards, leading to a coverage of `r round((wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), is_null == FALSE, PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(ARTICLE_TYPE %in% c("article", "review"), PUBYEAR == 2017) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % in 2017.
 
 We now want to investigate more thoroughly how the proportion of items without DOI depends on the article type. In order to keep the figures readable, we first identify the most common article types and collate the remaining ones in the category `Other`. Looking at the number of items per article type in the following figures, we decide to keep all types with more than `100,000` items.
 
@@ -107,7 +109,8 @@ wos_doi_cov_tidy %>%
   ggplot(aes(ARTICLE_TYPE, n)) +
     geom_bar(stat = "identity") +
     coord_flip() +
-    labs(x = "Article type", y = "Number of items", title = "Total number of items per article type")+
+    labs(x = "Article type", y = "Number of items", title = "Total number of items per article type") +
+  scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
   theme_bw()
 
 # wos_doi_cov_tidy %>%
@@ -146,7 +149,8 @@ wos_doi_cov_tidy %>%
     geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
     coord_flip() + 
     labs(x = "Publication year", y = "Number of items", fill = "DOI is null?",
-         title = "What article types have null-DOI in WoS?")+
+         title = "What article types have null-DOI in WoS?") +
+   scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
   theme_bw()
 ```
 In this figure we see that missing DOIs are an issue particularly for proceedings papers, meeting abstracts, book reviews and marginal categories (`Other`). The proportion of journal articles and reviews without DOI is much lower, as the above results already indicated.
@@ -163,7 +167,7 @@ We obtained our set of Unpaywall articles in a similar way to the method describ
 
 First, we downloaded the most recent Unpaywall data dump released in April 2019 from [here](https://s3-us-west-2.amazonaws.com/unpaywall-data-snapshots/) and imported it into a local MongoDB database. The snapshot contains more than 100 million records and hence, the file is about 100 GB in size. To obtain a more manageable object to work with, we extracted the fields which are most relevant to our matching objective running [extract_from_mongodb.txt](extract_from_mongodb.txt) on a bash shell.
 
-We initially filtered for publication years between 2014 and 2016, extracted DOI, publication year, article type (`genre`), article title, and some author information, namely the number of authors. We also extracted the given and family names of the first and last author, but did not use it so far in the matching routine. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (an access protected paid service), specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported the one corresponding to the publication year 2014 into the oracle environment of the KB.
+We initially filtered for publication years between 2014 and 2016, extracted DOI, publication year, article type (`genre`), article title, and some author information, namely the number of authors. We also extracted the given and family names of the first and last author, but did not use it so far in the matching routine. We exported the resulting data as json file and loaded it as table into our [GoogleBigQuery](https://cloud.google.com/bigquery/) analytical environment (an access protected paid service), <!-- with the following--> specifying a [schema](schema_bigquery.json). There, we added information on the journal (ISSN and journal title) to the data from a previous export based on the local MongoDB database. We joined the journal related fields on DOI, which was possible since every Unpaywall entry contains DOI information. We then exported the table as three different .csv files, one for each publication year and imported the one corresponding to the publication year 2014 into the Oracle environment of the KB.
 
 ## Matching criteria
 
@@ -196,6 +200,7 @@ publication_years_doi_matches %>%
   ggplot(aes(x=WOS_YEAR, y=MATCHES)) +
   geom_bar(stat="identity") +
   labs(x="WOS Publication Year", y="Number of DOI matched items", title = "WoS publication years for items matched to Unpaywall (publication year = 2014") +
+  scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
   theme_bw()
 
 ```
@@ -347,7 +352,7 @@ article_title_random_matches_length %>%
 
 ```
 
-The results show that there exists a wide variability in the length of titles when randomly matched, thus, by only comparing titles with similar lengths, we could exclude a large number of pairwise similarity comparisons between article titles. For example, excluding articles with differences in title lengths over 10 characters, would exclude `r round(100*(article_title_random_matches_length %>% filter(LENGTH_DIFFERENCE >= 10) %>% tally(N) %>% pull(n)) /(article_title_random_matches_length %>% tally(N) %>% pull(n)), 2)` % of the pairwise comparisons required, greatly improving performance.
+The results show <!-- delete: that there exists--> a wide variability in the length of titles when randomly matched, thus, by only comparing titles with similar lengths, we could exclude a large number of pairwise similarity comparisons between article titles. For example, excluding articles with differences in title lengths over 10 characters, would exclude `r round(100*(article_title_random_matches_length %>% filter(LENGTH_DIFFERENCE >= 10) %>% tally(N) %>% pull(n)) /(article_title_random_matches_length %>% tally(N) %>% pull(n)), 2)` % of the pairwise comparisons required, greatly improving performance.
 
 ### Article title duplicates
 
@@ -388,7 +393,8 @@ article_title_wos_duplicates %>%
   coord_flip() +
   theme_bw() +
   labs(y="Number of articles", x="", title="Number of duplicate articles for common titles in\n WoS (top 10)") +
-  scale_x_discrete( label = function(x) str_trunc(x, 30))
+  scale_x_discrete( label = function(x) str_trunc(x, 30)) +
+  scale_y_continuous(labels = scales::number_format(big.mark = ","))
 
 ```
 
@@ -407,7 +413,7 @@ journal_title_upw_coverage <- dbGetQuery(con, read_file("sql/criteria/journal_ti
 
 ```
 
-Journal titles present another possible facet for matching. First we checked the coverage of journal titles in datasets, finding that `r journal_title_wos_coverage` % of items in WoS, and `r journal_title_upw_coverage` % of items in Unpaywall are associated with a journal title.
+Journal titles present another possible facet for matching. First<!-- add","--> we checked the coverage of journal titles in datasets, finding that `r journal_title_wos_coverage` % of items in WoS, and `r journal_title_upw_coverage` % of items in Unpaywall are associated with a journal title.
 
 ```{r}
 journal_title_doi_matches_exact <- dbGetQuery(con, read_file("sql/criteria/journal_title_doi_matches_exact.sql")) %>%
@@ -505,7 +511,7 @@ In order to speed up matching we also created an index for the DOI column in bot
 
 ## Matching algorithm
 
-The first step of our matching routine is simply using DOIs where they exist and are present in both databases. The more interesting part is the matching of articles without DOI information based on the criteria discussed in the previous section. As mentioned before, we only consider `journal article` document types from Unpaywall and `article` and `review` document types from WoS. We only try to match articles where the publication year from WoS is the same as or up to two years after the one in Unpaywall. Since all Unpaywall articles we investigated in this analysis are from 2014, we perform the matching on WoS articles with publication year between 2014 and 2016.
+The first step of our matching routine is <!-- delete: simply--> using DOIs where they exist and are present in both databases. The more interesting part is the matching of articles without DOI information based on the criteria discussed in the previous section. As mentioned before, we only consider `journal article` document types from Unpaywall and `article` and `review` document types from WoS. We only try to match articles where the publication year from WoS is the same as or up to two years after the one in Unpaywall. Since all Unpaywall articles we investigated in this analysis are from 2014, we perform the matching on WoS articles with publication year between 2014 and 2016.
 
 Since the comparison of titles to determine their similarity measure is costly, we try to narrow down the subset of possible matching candidates as far as possible using the following criteria:
 
@@ -544,12 +550,12 @@ doi_matches_aggr %>%
   mutate(doi_is_matching = fct_recode(doi_is_matching, "matching DOIs"= "DOI_MATCHES", "WoS DOI is null" = "WOS_NULLS", "differing DOIs" = "DIFF_DOIS")) %>% 
   ggplot(aes(x = doi_is_matching, y = number_of_matches)) +
   geom_bar(stat = "identity") +
-  scale_y_continuous(labels = comma) +
-  labs(x = "", y = "Number of matches", title = "Are DOIs of matched records the same?") +
+ scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
+ labs(x = "", y = "Number of matches", title = "Are DOIs of matched records the same?") +
   theme_bw()
 ```
 
-Some articles in Unpaywall were matched with multiple WoS records. A superficial check of these records revealed that for some of them, the same DOI was registered with differing items key and title in WoS. For others, the titles were almost identical with just one word or number changed (for example, "part 1" and "part 2"). They mostly appeared in the same journal with identical author count and were thus not recognized as different articles by the algorithm. The following figure shows the frequency of duplicates.
+Some articles in Unpaywall were matched with multiple WoS records. A superficial <!-- maybe "manual" is better--> check of these records revealed that for some of them, the same DOI was registered with differing items key and title in WoS. For others, the titles were almost identical with just one word or number changed (for example, "part 1" and "part 2"). They mostly appeared in the same journal with identical author count and were thus not recognized as different articles by the algorithm. The following figure shows the frequency of duplicates.
 
 ```{r}
 doi_duplicates <- dbGetQuery(con, read_file("sql/results/gather_duplicates.sql"))
@@ -557,6 +563,7 @@ doi_duplicates %>%
   ggplot(aes(x = N)) +
     geom_histogram(binwidth = 1) +
     labs(x = "Number of duplicates", y = "Number of articles", title = "How frequent are duplicate matches?") +
+  scale_y_continuous(labels = scales::number_format(big.mark = ","))
   theme_bw()
 ```
 
