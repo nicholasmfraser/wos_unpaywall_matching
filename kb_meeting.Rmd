@@ -1,0 +1,409 @@
+---
+title: "Ist die DOI für ein Matching von Publikationsdatenbanken ausreichend?"
+subtitle: "Bericht über das Matching von Unpaywall und Web of Science"
+author: "<b>Anne Hobert</b>, SUB Göttingen<br>Nicholas Fraser, ZBW Kiel"
+date: "Sitzung der KB Konsortialpartner <br>26. November 2021"
+output:
+  ioslides_presentation:
+    widescreen: true
+    css: slide.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      options(scipen=999),
+                      out.width = "90%",
+                      fig.align = "center",
+                      dpi = 300)
+
+knitr::knit_hooks$set(inline = function(x) {
+  prettyNum(x, big.mark=",")
+})
+
+## Call libraries
+library(tidyverse)
+library(viridis)
+library(scales)
+
+## for data gathering
+# library(RJDBC)
+# library(DBI)
+# library(dbplyr)
+# drv <-JDBC("oracle.jdbc.OracleDriver", classPath= "jdbc_driver/ojdbc8.jar")
+# con <- dbConnect(drv, "jdbc:oracle:thin:@//biblio-p-db01:1521/bibliodb01.fiz.karlsruhe", Sys.getenv("kb_user01"), Sys.getenv("kb_password01"))
+```
+
+## Hintergrund
+
+- Kombination unterschiedlicher Publikationsdatenbanken erfordert Matching
+- Möglichkeit: Identifier nutzen, z.B. DOI
+- Problematik: Fehlende oder falsch hinterlegte Identifier in mindestens einer der Datenbanken
+- Lösung(sansatz): Weitere Felder für Zuordnung nutzen, etwa Titel der Publikation oder Metadaten der Zeitschrift
+- Hier: Matching von WoS-KB (wos_b_2019) und Unpaywall (Snapshot von April 2019)
+- Analysen und Bericht sind frei verfügbar in einem Github repositorium: [https://github.com/nicholasmfraser/wos_unpaywall_matching](https://github.com/nicholasmfraser/wos_unpaywall_matching)
+
+## Hintergrund: DOI-Information nach Jahr {.smaller}
+
+
+```{r}
+if(file.exists("data/wos_doi_coverage.csv")){
+  wos_doi_cov <- read_csv("data/wos_doi_coverage.csv")
+} else {
+  wos_doi_cov <- dbGetQuery(con, read_file("sql/motivation/wos_doi_coverage.sql"))
+  write_csv(wos_doi_cov, "data/wos_doi_coverage.csv")
+}
+wos_doi_cov_tidy <- wos_doi_cov %>%
+  gather("is_null", "number_of_items", -TOTAL_NUMBER_OF_ITEMS, -ARTICLE_TYPE, -PUBYEAR) %>%
+  mutate(is_null = case_when(
+    is_null == "NUMBER_OF_NULLS" ~ TRUE,
+    is_null == "NUMBER_OF_DOIS" ~ FALSE
+  )) %>%
+  select(-TOTAL_NUMBER_OF_ITEMS)
+```
+
+
+```{r, out.width="80%"}
+# Total number of null DOIs per year
+wos_doi_cov_tidy %>%
+  group_by(PUBYEAR, is_null) %>%
+  summarise(number_of_items = sum(number_of_items)) %>%
+  ggplot(aes(x = PUBYEAR, y = number_of_items)) + 
+    geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
+    labs(x = "Publikationsjahr", y = "Anzahl an Objekten", fill = "DOI null?",
+         title = "Wie viele Objekte in WoS haben eine null-DOI?") +
+  scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
+#  scale_fill_manual(values = c("#0d7b4d", "#f96078"), labels = c("Nein", "Ja")) +
+  scale_fill_viridis_d(option = "H", end = 0.9, begin = 0.32, labels = c("Nein", "Ja")) +
+  theme_bw()
+```
+
+Insgesamt: etwa `r round((wos_doi_cov_tidy %>% filter(is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` % mit DOI, vor 2000: `r round((wos_doi_cov_tidy %>% filter(PUBYEAR <2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR <2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %, ab 2000: `r round((wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000, is_null == FALSE) %>% summarise(n = sum(number_of_items)) %>% .$n)/(wos_doi_cov_tidy %>% filter(PUBYEAR >= 2000) %>% summarise(n = sum(number_of_items)) %>% .$n), 4)*100` %
+
+## Hintergrund: DOI-Information nach Artikeltyp
+
+```{r}
+# Number of null DOIs per article type
+# TODO: maybe make this a relative chart?
+wos_doi_cov_tidy_factors <- wos_doi_cov_tidy %>%
+  mutate(ARTICLE_TYPE = as_factor(ARTICLE_TYPE))%>%
+  group_by(ARTICLE_TYPE) %>%
+  summarise(number_of_items = sum(number_of_items)) %>%
+  arrange(desc(number_of_items)) %>%
+  mutate(article_type_grouped = fct_reorder(fct_relevel(fct_other(ARTICLE_TYPE, keep = ARTICLE_TYPE[.$number_of_items > 0.01*sum(wos_doi_cov_tidy$number_of_items)]), "Other"), number_of_items))
+wos_doi_cov_tidy %>%
+  mutate(ARTICLE_TYPE = as_factor(ARTICLE_TYPE))%>%
+  mutate(article_type_grouped = fct_relevel(fct_other(ARTICLE_TYPE, keep = wos_doi_cov_tidy_factors$article_type_grouped), "Other")) %>%
+  group_by(article_type_grouped, is_null) %>%
+  summarise(number_of_items = sum(number_of_items)) %>%
+  arrange(desc(number_of_items)) %>%
+  ungroup() %>% 
+  mutate(article_type_grouped = fct_reorder(article_type_grouped, desc(number_of_items))) %>%
+  ggplot(aes(x = forcats::fct_rev(fct_relevel(article_type_grouped, "Other", after = Inf)), y = number_of_items)) + 
+    geom_bar(aes(fill = is_null), stat = "identity", position = "dodge") +
+    coord_flip() + 
+    labs(x = "Publikationsjahr", y = "Anzahl an Objekten", fill = "DOI null?",
+         title = "Welche Artikeltypen haben eine null-DOI?") +
+   scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
+  scale_fill_viridis_d(option = "H", end = 0.9, begin = 0.32, labels = c("Nein", "Ja")) +
+  theme_bw()
+```
+
+
+## Datenauswahl
+
+Unpaywall:
+
+- Snapshot von April 2019
+- Publikationsjahr: 2014
+- Artikeltyp ('genre'): 'journal-article'
+- Datenzugriff über Google BigQuery Instanz der SUB Göttingen
+
+Web of Science:
+
+- Instanz des Kompetenzzentrums Bibliometrie
+- Bibliometrische Datenbank 'wos_b_2019'
+
+Nutzung von `LOWER` and `TRIM`
+
+## Kandidaten für Matching-Kriterien
+
+Auf Ebene der Publikation:
+
+- Publikationsjahr
+- Titel der Publikation
+- Anzahl der Autor*innen
+
+Auf Ebene der Zeitschrift:
+
+- Titel der Zeitschrift
+- ISSN der Zeitschrift
+
+## Kriterien: Publikationsjahr
+
+```{r, out.width="40%"}
+if(file.exists("data/criteria/publication_years_doi_matches.csv")){
+  publication_years_doi_matches <- read_csv("data/criteria/publication_years_doi_matches.csv")
+} else {
+  publication_years_doi_matches <- dbGetQuery(con, read_file("sql/criteria/publication_years_doi_matches.sql"))
+  write_csv(publication_years_doi_matches, "data/criteria/publication_years_doi_matches.csv")
+}
+
+publication_years_doi_matches %>% 
+  mutate(year_diff = WOS_YEAR - UNPAYWALL_YEAR) %>% 
+  mutate(year_diff_group = case_when(
+    year_diff < 0 ~ "Publikationsjahr in WoS früher als in Unpaywall",
+    year_diff == 0 ~ "Identisches Publikationsjahr",
+    year_diff == 1 ~ "Publikationsjahr in WoS ein Jahr später als in Unpaywall",
+    year_diff == 2 ~ "Publikationsjahr in WoS zwei Jahre später als in Unpaywall",
+    year_diff > 2 ~ "Publikationsjahr in WoS mehr als zwei Jahre später als in Unpaywall"
+  )) %>% 
+  mutate(year_diff_group = fct_relevel(as_factor(year_diff_group), c("Publikationsjahr in WoS früher als in Unpaywall", "Identisches Publikationsjahr", "Publikationsjahr in WoS ein Jahr später als in Unpaywall", "Publikationsjahr in WoS zwei Jahre später als in Unpaywall", "Publikationsjahr in WoS mehr als zwei Jahre später als in Unpaywall"))) %>% 
+  group_by(year_diff_group) %>% 
+  summarise(MATCHES = sum(MATCHES)) %>% 
+  ungroup() %>% 
+  mutate(perc = round(MATCHES / sum(MATCHES), digits = 2)*100) %>% 
+  select(year_diff_group, perc) %>% 
+  knitr::kable(
+    col.names = c(
+      "Unterschiede in Publikationsjahren",
+      "Anteil an gematchten Artikeln (in %)"
+    )
+  )
+```
+
+## Kriterien: Titel der Publikation, Ähnlichkeitsmaß {.smaller}
+
+```{r, fig.asp=0.5}
+if(file.exists("data/criteria/article_title_doi_matches_similarity.csv")){
+  article_title_doi_matches_similarity <- read_csv("data/criteria/article_title_doi_matches_similarity.csv")
+} else {
+  article_title_doi_matches_similarity <- dbGetQuery(con, read_file("sql/criteria/article_title_doi_matches_similarity.sql"))
+  write_csv(article_title_doi_matches_similarity, "data/criteria/article_title_doi_matches_similarity.csv")
+}
+if(file.exists("data/criteria/article_title_random_matches_similarity.csv")){
+  article_title_random_matches_similarity <- read_csv("data/criteria/article_title_random_matches_similarity.csv")
+} else {
+  article_title_random_matches_similarity <- dbGetQuery(con, read_file("sql/criteria/article_title_random_matches_similarity.sql"))
+  write_csv(article_title_random_matches_similarity, "data/criteria/article_title_random_matches_similarity.csv")
+}
+article_title_doi_matches_similarity <- article_title_doi_matches_similarity %>% 
+  select(EDIT_DISTANCE_SIMILARITY) %>% 
+  mutate(matched = "Identische DOI")
+article_title_random_matches_similarity <- article_title_random_matches_similarity %>% 
+  select(EDIT_DISTANCE_SIMILARITY) %>% 
+  mutate(matched = "Zufällige Paarung")
+article_title_similarity <- article_title_doi_matches_similarity %>% 
+  bind_rows(article_title_random_matches_similarity)
+
+article_title_similarity %>%
+  group_by(matched, EDIT_DISTANCE_SIMILARITY) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n/sum(n)) %>%
+  ggplot(aes(x=EDIT_DISTANCE_SIMILARITY, y=freq)) +
+  geom_bar(stat="identity", fill = "#C42503FF") +
+  labs(y="Anteil an gepaarten Artikeln (in %)", x="Ähnlichkeitsmaß") +
+  theme_light() +
+  theme(legend.position = "none") +
+  theme(
+      strip.text.x = element_text(color = "black"),
+      strip.text.y = element_text(color = "black")
+      ) +
+  scale_y_continuous(breaks=seq(from=0, to=1, by=0.1), labels=scales::percent) +
+  scale_x_continuous(breaks=seq(from=0, to=100, by=10)) +
+  facet_wrap(~matched)
+```
+
+Basierend auf [Levenshtein Distanz](https://en.wikipedia.org/wiki/Levenshtein_distance), da [Jaro-Winkler Distanz](https://en.wikipedia.org/wiki/Jaro-Winkler_distance) geringere Trennschärfe aufweist
+
+## Kriterien: Titel der Publikation, Titellänge {.smaller}
+
+```{r, fig.asp=0.45}
+if(file.exists("data/criteria/article_title_doi_matches_length.csv")){
+  article_title_doi_matches_length <- read_csv("data/criteria/article_title_doi_matches_length.csv")
+} else {
+  article_title_doi_matches_length <- dbGetQuery(con, read_file("sql/criteria/article_title_doi_matches_length.sql"))
+  write_csv(article_title_doi_matches_length, "data/criteria/article_title_doi_matches_length.csv")
+}
+if(file.exists("data/criteria/article_title_random_matches_length.csv")){
+  article_title_random_matches_length <- read_csv("data/criteria/article_title_random_matches_length.csv")
+} else {
+  article_title_random_matches_length <- dbGetQuery(con, read_file("sql/criteria/article_title_random_matches_length.sql"))
+  write_csv(article_title_random_matches_length, "data/criteria/article_title_random_matches_length.csv")
+}
+article_title_doi_matches_length <- article_title_doi_matches_length %>% 
+  mutate(matched = "Identische DOI")
+article_title_random_matches_length <- article_title_random_matches_length %>% 
+  mutate(matched = "Zufällige Paarung")
+article_title_length <- article_title_doi_matches_length %>% 
+  bind_rows(article_title_random_matches_length)
+
+article_title_length %>%
+  ggplot(aes(x=LENGTH_DIFFERENCE, y=N)) +
+  geom_bar(stat="identity", fill = "#C42503FF") +
+  coord_cartesian(xlim=c(0,50)) +
+  labs(x="Abweichung in Titellänge", y="Anzahl an Paarungen") +
+  theme_light() +
+  theme(legend.position = "none") +
+  theme(
+      strip.text.x = element_text(color = "black"),
+      strip.text.y = element_text(color = "black")
+      ) +
+  facet_wrap(~matched, scales="free")
+```
+
+- Abweichung in der Titellänge von maximal 10 Zeichen: `r round(100*(article_title_doi_matches_length %>% filter(LENGTH_DIFFERENCE <= 10) %>% tally(N) %>% pull(n)) /(article_title_doi_matches_length %>% tally(N) %>% pull(n)), 2)`% der gematchten Artikel
+- Reduktion der nötigen Vergleiche um `r round(100*(article_title_random_matches_length %>% filter(LENGTH_DIFFERENCE >= 10) %>% tally(N) %>% pull(n)) /(article_title_random_matches_length %>% tally(N) %>% pull(n)), 2)`% 
+
+## Kriterien: Titel der Publikation, Duplikate
+ 
+- Eindeutigkeit von Artikeltiteln: 99.57% in WoS, 95.19% in Unpaywall
+- Duplikate etwa 'editorial', 'table of contents', 'front cover', 'issue information', 'untitled', 'introduction'
+- Verwandte Dokumente: etwa 'Corrigendum: [Originaltitel]' oder 'Addendum: [Originaltitel]'
+- Vorgehensweise: Ausschluss von Duplikaten und anhand einer Schlüsselwortliste
+
+## Kriterien: Autor*inneninformation
+
+Kein Vergleich von Autor*innennamen aus folgenden Gründen:
+
+  - Problematik der Autor*innendisambiguierung
+  - Ineffizienz (Stringvergleiche)
+  
+<br>
+
+Stattdessen: Anzahl der Autor*innen
+
+## Kriterien: Zeitschrifteninformation
+
+ <div style="float: left; width: 50%;">
+### Titel der Zeitschrift
+
+<!-- kein Zugriff mehr auf wos_b_2019, daher Zahlen explizit aus report.pdf übernommen -->
+- Abdeckung: 100% in WoS, 100% in Unpaywall mit Zeitschriftentitel
+- Übereinstimmung bei DOI-gematchten Artikeln: 80.46%
+- Unterschiede: durch Zeichenkodierung bzw. Abkürzungen
+</div>
+
+<div style="float: right; width: 50%;">
+### ISSN
+
+- Abdeckung: 99.28% in WoS, 99.95% in Unpaywall mit ISSN-Information
+- Übereinstimmung bei DOI-gematchten Artikeln: 97.43% 
+
+</div>
+
+## Matching Algorithmus
+
+- Zunächst: DOI
+- Anschließend: Zuordnung von Artikeltiteln (Ähnlichkeitsmaß der Levenshtein Distanz größer als 80 %)
+- Auswahl von Kandidaten für Titelvergleich:
+  - Publikationsjahr: identisch oder bis zu zwei Jahre später in WoS
+  - Anzahl der Autor*innen: identisch
+  - Titellänge: maximale Abweichung von 10 Zeichen
+  - Zeitschrifteninformation: identische ISSN ODER identischer Titel
+
+
+## Evaluation: Algorithmus unter Nutzung von DOI-Information {.smaller}
+
+```{r, fig.asp=0.4}
+#doi_matches <- dbGetQuery(con, read_file("sql/results/gather_matching_results.sql"))
+if(file.exists("data/results/doi_matches_aggr.csv")){
+  doi_matches_aggr <- read_csv("data/results/doi_matches_aggr.csv")
+} else {
+  doi_matches_aggr <- dbGetQuery(con, read_file("sql/results/gather_matching_results_aggr.sql"))
+  write_csv(doi_matches_aggr, "data/results/doi_matches_aggr.csv")
+}
+doi_matches_aggr %>% 
+  select(TOTAL_MATCHES, DOI_MATCHES, WOS_NULLS, DIFF_DOIS) %>% 
+  gather(key = "doi_is_matching", value = "number_of_matches", -TOTAL_MATCHES) %>% 
+  mutate(doi_is_matching = factor(doi_is_matching, levels = c("DOI_MATCHES", "WOS_NULLS", "DIFF_DOIS"))) %>% 
+  mutate(doi_is_matching = fct_recode(doi_is_matching, "Identische DOI"= "DOI_MATCHES", "WoS DOI null" = "WOS_NULLS", "Unterschiedliche DOIs" = "DIFF_DOIS")) %>% 
+  ggplot(aes(x = doi_is_matching, y = number_of_matches)) +
+  geom_bar(stat = "identity", fill = "#C42503FF") +
+ scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
+ labs(x = "", y = "Anzahl von Zuordnungen", title = "Stimmen die DOIs der gematchten Artikel überein?") +
+  theme_bw()
+```
+
+- Insgesamt: `r doi_matches_aggr$TOTAL_MATCHES` Zuordnungen
+- Überprüfung von 100 zufälligen Zuordnungen ohne WoS DOI: alle Unpaywall-DOIs korrekt
+
+## Evaluation: Mehrfachzuordnungen {.smaller}
+
+Einige Unpaywallartikel mit mehreren WoS Objekten gematcht
+
+- Identische DOI für unterschiedliche PK_ITEMS und Titel in WoS
+- Fast identische Einträge, Unterscheidung lediglich durch ein Wort oder eine Zahl ('part 1' und 'part 2')
+
+```{r, fig.asp=0.4}
+if(file.exists("data/results/duplicates.csv")){
+  doi_duplicates <- read_csv("data/results/duplicates.csv")
+} else {
+  doi_duplicates <- dbGetQuery(con, read_file("sql/results/gather_duplicates.sql"))
+  write_csv(doi_duplicates, "data/results/duplicates.csv")
+}
+doi_duplicates %>% 
+  ggplot(aes(x = N)) +
+    geom_histogram(binwidth = 1, fill = "#C42503FF") +
+    labs(x = "Anzahl an Duplikaten", y = "Anzahl an Artikeln", title = "Wie häufig sind Mehrfachzuordnungen?") +
+  scale_y_continuous(labels = scales::number_format(big.mark = ",")) +
+  theme_bw()
+```
+
+
+
+## Evaluation: Algorithmus OHNE vorhergehende DOI-Zuordnung
+
+Referenz: Zuordnungen auf Basis der DOI (Ausschluss von Artikeln mit null DOI)
+
+```{r}
+if(file.exists("data/results/n_matches_eval.csv")){
+  n_matches_eval <- read_csv("data/results/n_matches_eval.csv")
+} else {
+  n_matches_eval <- dbGetQuery(con, read_file("sql/results/gather_number_matches_eval.sql"))
+  write_csv(n_matches_eval, "data/results/n_matches_eval.csv")
+}
+if(file.exists("data/results/n_matches_doi.csv")){
+  n_matches_doi <- read_csv("data/results/n_matches_doi.csv")
+} else {
+  n_matches_doi <- dbGetQuery(con, read_file("sql/results/gather_number_matches_doi.sql"))
+  write_csv(n_matches_doi, "data/results/n_matches_doi.csv")
+}
+```
+<br>
+<br>
+Wie viele Artikel werden gefunden (Recall)?
+
+<center> <font size="+2"><b> `r round(n_matches_eval$DOI_MATCHES/n_matches_doi$N*100, 2)` %</b></font> </center>
+   
+<!-- Anteil an gematchten Artikeln unter allen Artikeln mit übereinstimmender DOI  -->
+<br>
+<br>
+Wie viele gefundene Artikel sind korrekt zugeordnet (Präzision)?
+
+<center> <font size="+2"><b> `r round(n_matches_eval$DOI_MATCHES/n_matches_eval$TOTAL_MATCHES*100, 2)` %. </b></font> </center>
+
+<!-- Anteil an gematchten Artikeln mit korrekter DOI unter allen gematchten Artikeln -->
+
+
+
+## Zusammenfassung und Diskussion {.smaller}
+
+- Vielversprechende Ergebnisse
+  - Hohe Anzahl an Matches, zusätzliche Funde auch bei hoher DOI-Abdeckung
+  - Sehr geringer Anteil von Fehlzuordnungen
+- Schwächen
+  - Artikel mit sehr ähnlichen Titeln, identischer Autor*innenzahl im selben Journal
+  - Nur eindeutige Titel berücksichtigt
+  - Keine Evaluation der Zuverlässigkeit der Autor*innenanzahl
+- Laufzeit: etwa 4 Stunden auf dem Skriptserver (mit DOI-Information etwas schneller)
+- Mögliche Anpassungen und Lösungsansätze:
+  - Höherer Schwellenwert für das Ähnlichkeitsmaß
+  - Einarbeitung weiterer Kriterien (wie beispielsweise Autor*innennamen/-affiliationen)
+  - Ausschluss nur von Artikeln, die in allen Kriterien übereinstimmen, oder Wahl eines Repräsentanten
+  - Erstellung einer Matchingtabelle (einmaliges Durchlaufen)
+
+
+
+
